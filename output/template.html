@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuthCanary — Security Operations & Triage Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Design System & Theme Variables ──────────────────────────── */
+  :root {
+    --bg-base: #07090e;
+    --bg-surface: #0d121d;
+    --bg-card: #121826;
+    --bg-card-hover: #182032;
+    --bg-glass: rgba(18, 24, 38, 0.75);
+    
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-default: rgba(255, 255, 255, 0.12);
+    --border-bright: rgba(255, 255, 255, 0.22);
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    --accent-cyan: #06b6d4;
+    --accent-cyan-glow: rgba(6, 182, 212, 0.15);
+    --accent-blue: #3b82f6;
+    --accent-indigo: #6366f1;
+    
+    --severity-critical: #f43f5e;
+    --severity-critical-bg: rgba(244, 63, 94, 0.12);
+    --severity-critical-border: rgba(244, 63, 94, 0.35);
+    
+    --severity-elevated: #f59e0b;
+    --severity-elevated-bg: rgba(245, 158, 11, 0.12);
+    --severity-elevated-border: rgba(245, 158, 11, 0.35);
+    
+    --severity-nominal: #10b981;
+    --severity-nominal-bg: rgba(16, 185, 129, 0.12);
+    --severity-nominal-border: rgba(16, 185, 129, 0.35);
+    
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --shadow-glow: 0 0 30px rgba(6, 182, 212, 0.08);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    background-image: 
+      radial-gradient(ellipse at 15% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 85% 0%, rgba(6, 182, 212, 0.10) 0%, transparent 50%),
+      radial-gradient(circle at 50% 100%, rgba(244, 63, 94, 0.05) 0%, transparent 70%);
+    background-attachment: fixed;
+  }
+
+  .app-container {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* ── Header & System Banner ───────────────────────────────────── */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, #4f46e5, #06b6d4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+
+  .brand-title h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-title .badge-version {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--accent-cyan);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+  }
+
+  .brand-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .system-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+
+  .meta-tag {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .meta-tag strong {
+    color: var(--text-primary);
+  }
+
+  /* ── Threat Status Bar ────────────────────────────────────────── */
+  .threat-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 28px;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .threat-banner.threat-CRITICAL {
+    background: var(--severity-critical-bg);
+    border: 1px solid var(--severity-critical-border);
+    box-shadow: 0 0 30px rgba(244, 63, 94, 0.15);
+  }
+
+  .threat-banner.threat-ELEVATED {
+    background: var(--severity-elevated-bg);
+    border: 1px solid var(--severity-elevated-border);
+    box-shadow: 0 0 30px rgba(245, 158, 11, 0.15);
+  }
+
+  .threat-banner.threat-NOMINAL, .threat-banner.threat-MODERATE {
+    background: var(--severity-nominal-bg);
+    border: 1px solid var(--severity-nominal-border);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.12);
+  }
+
+  .threat-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .threat-pulse {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    position: relative;
+  }
+
+  .threat-CRITICAL .threat-pulse { background: var(--severity-critical); box-shadow: 0 0 12px var(--severity-critical); }
+  .threat-ELEVATED .threat-pulse { background: var(--severity-elevated); box-shadow: 0 0 12px var(--severity-elevated); }
+  .threat-NOMINAL .threat-pulse, .threat-MODERATE .threat-pulse { background: var(--severity-nominal); box-shadow: 0 0 12px var(--severity-nominal); }
+
+  .threat-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    animation: ripple 2s infinite ease-out;
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0.9); opacity: 0.9; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .threat-headline h2 {
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .threat-CRITICAL .threat-headline h2 { color: var(--severity-critical); }
+  .threat-ELEVATED .threat-headline h2 { color: var(--severity-elevated); }
+  .threat-NOMINAL .threat-headline h2, .threat-MODERATE .threat-headline h2 { color: var(--severity-nominal); }
+
+  .threat-headline p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .threat-score-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .threat-score-pill .label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .threat-score-pill .value {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /* ── Tab Navigation ───────────────────────────────────────────── */
+  .nav-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 14px;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
+
+  .tab-btn.active {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-color: var(--border-default);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  .tab-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .tab-btn.active .tab-badge.badge-alert {
+    background: var(--severity-critical);
+    color: #fff;
+  }
+
+  /* ── Section Content ──────────────────────────────────────────── */
+  .tab-pane {
+    display: none;
+  }
+
+  .tab-pane.active {
+    display: block;
+    animation: fadeIn 0.25s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Metric Cards Grid ────────────────────────────────────────── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 550px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .kpi-card:hover {
+    border-color: var(--border-default);
+    transform: translateY(-2px);
+  }
+
+  .kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .kpi-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .kpi-icon {
+    font-size: 16px;
+    opacity: 0.7;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .kpi-subtext {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── 2-Column Analytics Layout ────────────────────────────────── */
+  .analytics-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+
+  @media (max-width: 900px) {
+    .analytics-row { grid-template-columns: 1fr; }
+  }
+
+  .dashboard-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+  }
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ── 24-Hour Activity Chart ───────────────────────────────────── */
+  .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 140px;
+    padding-top: 20px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+    position: relative;
+  }
+
+  .bar {
+    width: 100%;
+    min-height: 4px;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(180deg, var(--accent-cyan), var(--accent-indigo));
+    transition: height 0.4s ease, opacity 0.2s;
+    opacity: 0.8;
+  }
+
+  .chart-col:hover .bar {
+    opacity: 1;
+    background: var(--accent-cyan);
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+  }
+
+  .bar-label {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  .bar-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1px solid var(--border-default);
+    color: #fff;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+  }
+
+  .chart-col:hover .bar-tooltip {
+    opacity: 1;
+  }
+
+  /* ── Warmup & Baseline Radar ──────────────────────────────────── */
+  .warmup-box {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-top: 14px;
+  }
+
+  .warmup-progress-bar {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 10px 0;
+  }
+
+  .warmup-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan));
+    border-radius: 999px;
+    transition: width 0.5s ease;
+  }
+
+  .warmup-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  /* ── User Breakdown Table ─────────────────────────────────────── */
+  .user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .user-table th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .user-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .user-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #334155;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+
+  /* ── Triage Cards Deck ("What's Important") ───────────────────── */
+  .triage-deck {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .triage-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .triage-card.critical {
+    border-left: 4px solid var(--severity-critical);
+    background: linear-gradient(90deg, rgba(244, 63, 94, 0.05) 0%, var(--bg-card) 20%);
+  }
+
+  .triage-card.elevated {
+    border-left: 4px solid var(--severity-elevated);
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card) 20%);
+  }
+
+  .triage-card.moderate {
+    border-left: 4px solid var(--accent-blue);
+  }
+
+  .triage-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .triage-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .triage-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    letter-spacing: 0.05em;
+  }
+
+  .badge-critical { background: var(--severity-critical-bg); color: var(--severity-critical); border: 1px solid var(--severity-critical-border); }
+  .badge-elevated { background: var(--severity-elevated-bg); color: var(--severity-elevated); border: 1px solid var(--severity-elevated-border); }
+  .badge-nominal { background: var(--severity-nominal-bg); color: var(--severity-nominal); border: 1px solid var(--severity-nominal-border); }
+
+  .triage-user {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .triage-timestamp {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .score-dial {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-default);
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+  }
+
+  .score-dial-val {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .score-dial-max {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .triage-reasons {
+    list-style: none;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .triage-reason-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .reason-bullet {
+    color: var(--severity-critical);
+    font-weight: 800;
+  }
+
+  .triage-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-surface);
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+  }
+
+  .action-callout {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    font-size: 13px;
+    color: #93c5fd;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ── Systematic Log Stream Table ──────────────────────────────── */
+  .log-stream-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 260px;
+  }
+
+  .search-input {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    padding: 10px 14px 10px 38px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 10px var(--accent-cyan-glow);
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .filter-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .chip:hover {
+    border-color: var(--border-default);
+    color: var(--text-primary);
+  }
+
+  .chip.active {
+    background: var(--accent-indigo);
+    color: #fff;
+    border-color: var(--accent-indigo);
+  }
+
+  .log-table-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+  }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .log-table th {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 12px 16px;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .log-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+  }
+
+  .log-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .log-raw-drawer {
+    display: none;
+    background: #06090e;
+    padding: 14px 18px;
+    border-top: 1px dashed var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.6;
+    word-break: break-all;
+  }
+
+  .log-raw-drawer.open {
+    display: table-row;
+  }
+
+  .log-raw-content {
+    background: #090e17;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    color: #38bdf8;
+    margin-top: 6px;
+  }
+
+  .expand-btn {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+  }
+
+  .expand-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-bright);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+
+  .empty-state-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  .empty-state h3 {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+
+  .btn-copy {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: auto;
+  }
+
+  .btn-copy:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- ── Top Brand & System Banner ──────────────────────────────── -->
+  <header class="top-bar">
+    <div class="brand-group">
+      <div class="brand-icon">🛡️</div>
+      <div class="brand-title">
+        <h1>AuthCanary <span class="badge-version">v1.2 Canary</span></h1>
+        <p class="brand-subtitle">Autonomous Host Authentication Triage & Statistical Baseline</p>
+      </div>
+    </div>
+    <div class="system-meta">
+      <div class="meta-tag">
+        <span>Host:</span>
+        <strong>{{ host_info.hostname }}</strong>
+      </div>
+      <div class="meta-tag">
+        <span>OS:</span>
+        <strong>{{ host_info.platform }}</strong>
+      </div>
+      <div class="meta-tag">
+        <span>Scanned:</span>
+        <strong>{{ generated_at }}</strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Global Threat Status Posture ───────────────────────────── -->
+  <section class="threat-banner threat-{{ threat_level }}">
+    <div class="threat-left">
+      <div class="threat-pulse"></div>
+      <div class="threat-headline">
+        <h2>{{ threat_label }}</h2>
+        <p>
+          {% if anomaly_count > 0 %}
+            {{ anomaly_count }} event{% if anomaly_count > 1 %}s{% endif %} crossed the alert sensitivity threshold (score ≥ {{ alert_threshold }}/100)
+          {% else %}
+            All recorded authentication signals conform to learned baseline distribution
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="threat-score-pill">
+      <span class="label">Peak Anomaly Score</span>
+      <span class="value" style="color: {% if max_score >= 60 %}#f43f5e{% elif max_score >= 40 %}#f59e0b{% else %}#10b981{% endif %}">
+        {{ max_score }}/100
+      </span>
+    </div>
+  </section>
+
+  <!-- ── Navigation Tabs ────────────────────────────────────────── -->
+  <nav class="nav-tabs" role="tablist">
+    <button class="tab-btn active" onclick="switchTab('overview')" id="tab-btn-overview">
+      <span>📊 Executive Overview</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('triage')" id="tab-btn-triage">
+      <span>🚨 What's Important (Triage)</span>
+      <span class="tab-badge {% if anomaly_count > 0 %}badge-alert{% endif %}">{{ anomaly_count }}</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('logs')" id="tab-btn-logs">
+      <span>📋 System Log Stream</span>
+      <span class="tab-badge">{{ all_events|length }}</span>
+    </button>
+  </nav>
+
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <!-- TAB 1: EXECUTIVE OVERVIEW & SUMMARY                           -->
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <div id="pane-overview" class="tab-pane active">
+
+    <!-- KPI Metric Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Ingested Events</span>
+          <span class="kpi-icon">📜</span>
+        </div>
+        <div class="kpi-value">{{ stats.total_events or all_events|length }}</div>
+        <div class="kpi-subtext">Processed from system auth stream</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">High-Risk Anomalies</span>
+          <span class="kpi-icon">⚠️</span>
+        </div>
+        <div class="kpi-value" style="color: {% if anomaly_count > 0 %}#f43f5e{% else %}#10b981{% endif %};">
+          {{ anomaly_count }}
+        </div>
+        <div class="kpi-subtext">Threshold: ≥ {{ alert_threshold }} score</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Monitored Accounts</span>
+          <span class="kpi-icon">👤</span>
+        </div>
+        <div class="kpi-value">{{ stats.unique_users or user_stats|length }}</div>
+        <div class="kpi-subtext">Active system users profiled</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Network Endpoints</span>
+          <span class="kpi-icon">🌐</span>
+        </div>
+        <div class="kpi-value">{{ stats.unique_ips or 1 }}</div>
+        <div class="kpi-subtext">Distinct source IPs observed</div>
+      </div>
+    </div>
+
+    <!-- Analytics Row: Activity Chart + Baseline Status -->
+    <div class="analytics-row">
+      <!-- 24-Hour Temporal Activity Chart -->
+      <div class="dashboard-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🕒 24-Hour Authentication Distribution</div>
+            <div class="panel-subtitle">Login frequencies across day hours (00:00 to 23:00)</div>
+          </div>
+        </div>
+
+        {% set max_hour_count = 1 %}
+        {% for count in hour_histogram %}
+          {% if count > max_hour_count %}{% set max_hour_count = count %}{% endif %}
+        {% endfor %}
+
+        <div class="chart-bars">
+          {% for count in hour_histogram %}
+            {% set h_idx = loop.index0 %}
+            {% set pct = (count / max_hour_count * 100)|round|int %}
+            <div class="chart-col">
+              <div class="bar-tooltip">{{ count }} events at {{ '%02d'|format(h_idx) }}:00</div>
+              <div class="bar" style="height: {{ [pct, 4]|max }}%;"></div>
+              <span class="bar-label">{{ '%02d'|format(h_idx) }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Baseline Health & Warmup Progress -->
+      <div class="dashboard-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🛡️ Baseline Learning Engine</div>
+            <div class="panel-subtitle">Statistical profiling status</div>
+          </div>
+        </div>
+
+        <div class="warmup-box">
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600;">
+            <span>Warm-up State</span>
+            <span style="color: {% if warmup_complete %}var(--severity-nominal){% else %}var(--severity-elevated){% endif %};">
+              {% if warmup_complete %}COMPLETE (ACTIVE ALERTING){% else %}LEARNING BASELINE{% endif %}
+            </span>
+          </div>
+
+          <div class="warmup-progress-bar">
+            <div class="warmup-fill" style="width: {% if warmup_complete %}100%{% else %}45%{% endif %};"></div>
+          </div>
+
+          <p class="warmup-desc">{{ warmup_message }}</p>
+        </div>
+
+        <div style="margin-top: 18px; font-size: 12px; color: var(--text-secondary);">
+          <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+            <span>Scoring Sensitivity:</span>
+            <strong style="color: var(--text-primary);">≥ {{ alert_threshold }}/100 points</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+            <span>Enrichment Provider:</span>
+            <strong style="color: var(--text-primary);">ip-api.com (cached SQLite)</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monitored Users Table -->
+    <div class="dashboard-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">👥 Monitored System Accounts</div>
+          <div class="panel-subtitle">Profiled user behavior & threat history</div>
+        </div>
+      </div>
+
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>User Account</th>
+            <th>Observed Events</th>
+            <th>Peak Anomaly Score</th>
+            <th>Anomalies Flagged</th>
+            <th>Posture</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for username, udata in user_stats.items() %}
+          <tr>
+            <td>
+              <span class="user-badge">
+                <span class="user-avatar">{{ username[0]|upper }}</span>
+                {{ username }}
+              </span>
+            </td>
+            <td>{{ udata.count }}</td>
+            <td>
+              <strong style="color: {% if udata.max_score >= 60 %}var(--severity-critical){% elif udata.max_score >= 40 %}var(--severity-elevated){% else %}var(--severity-nominal){% endif %}; font-family: var(--font-mono);">
+                {{ udata.max_score }}/100
+              </strong>
+            </td>
+            <td>{{ udata.anomalies }}</td>
+            <td>
+              {% if udata.anomalies > 0 %}
+                <span class="triage-badge badge-critical">Attention Needed</span>
+              {% else %}
+                <span class="triage-badge badge-nominal">Normal</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <!-- TAB 2: WHAT'S IMPORTANT (CRITICAL TRIAGE DECK)               -->
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <div id="pane-triage" class="tab-pane">
+
+    {% if scored_events|length == 0 %}
+      <div class="dashboard-panel empty-state">
+        <div class="empty-state-icon">🛡️</div>
+        <h3>No High-Severity Anomalies Detected</h3>
+        <p>All scanned authentication events fell below the alert threshold ({{ alert_threshold }}/100). Baseline patterns are within expected norms.</p>
+        <div style="margin-top: 20px;">
+          <button class="chip active" onclick="switchTab('logs')">View System Log Stream ({{ all_events|length }} entries)</button>
+        </div>
+      </div>
+    {% else %}
+      <div class="triage-deck">
+        {% for se in scored_events %}
+          <div class="triage-card {% if se.score >= 60 %}critical{% elif se.score >= 40 %}elevated{% else %}moderate{% endif %}">
+            <div class="triage-top">
+              <div class="triage-identity">
+                <span class="triage-badge {% if se.score >= 60 %}badge-critical{% else %}badge-elevated{% endif %}">
+                  {% if se.score >= 60 %}CRITICAL RISK{% else %}ELEVATED ANOMALY{% endif %}
+                </span>
+                <span class="triage-user">{{ se.event.username }}</span>
+                <span class="triage-timestamp">{{ se.event.timestamp }}</span>
+              </div>
+              <div class="score-dial">
+                <span class="score-dial-val" style="color: {% if se.score >= 60 %}var(--severity-critical){% else %}var(--severity-elevated){% endif %};">
+                  {{ se.score }}
+                </span>
+                <span class="score-dial-max">/100</span>
+              </div>
+            </div>
+
+            <!-- Detailed Rationale Breakdown -->
+            <ul class="triage-reasons">
+              {% for r in se.reasons %}
+                <li class="triage-reason-item">
+                  <span class="reason-bullet">▸</span>
+                  <span>{{ r }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+
+            <!-- Geolocation & ASN Metadata Row -->
+            <div class="triage-meta-row">
+              <span class="meta-pill">⚡ Event: <strong>{{ se.event.event_type }}</strong></span>
+              {% if se.event.source_ip %}
+                <span class="meta-pill">🌐 IP: <strong>{{ se.event.source_ip }}</strong></span>
+              {% endif %}
+              {% if se.enrichment and se.enrichment.enriched %}
+                <span class="meta-pill">🏢 ASN: <strong>{{ se.enrichment.asn }}</strong> ({{ se.enrichment.org }})</span>
+                {% if se.enrichment.city != "unknown" %}
+                  <span class="meta-pill">📍 Location: <strong>{{ se.enrichment.city }}, {{ se.enrichment.country }}</strong></span>
+                {% endif %}
+              {% endif %}
+              <button class="btn-copy" onclick="copyAlertText('{{ se.event.username }}', '{{ se.score }}', '{{ se.event.timestamp }}')">
+                📋 Copy Incident Summary
+              </button>
+            </div>
+
+            <!-- Recommended Response -->
+            <div class="action-callout">
+              <strong>💡 Recommended Action:</strong>
+              {% if "SSH key" in se.reasons|join(" ") %}
+                Verify authorized_keys changes with account owner. Revoke untrusted public keys immediately.
+              {% elif "sudo" in se.reasons|join(" ") %}
+                Review /etc/sudoers privileges for user '{{ se.event.username }}' to ensure unauthorized privilege escalation has not occurred.
+              {% elif "brute-force" in se.reasons|join(" ") %}
+                Block source IP {{ se.event.source_ip }} via local firewall (pf/iptables) and verify password complexity.
+              {% else %}
+                Contact user '{{ se.event.username }}' to confirm off-hours or remote login from this location.
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+  </div>
+
+
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <!-- TAB 3: SYSTEM LOG STREAM (SYSTEMATIC LOG EXPLORER)            -->
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <div id="pane-logs" class="tab-pane">
+
+    <div class="log-stream-controls">
+      <div class="search-input-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="logSearchInput" class="search-input" placeholder="Filter by username, IP, command, keyword, or score..." onkeyup="filterLogs()">
+      </div>
+      <div class="filter-chips">
+        <button class="chip active" onclick="setCategoryFilter('all', this)">All Logs ({{ all_events|length }})</button>
+        <button class="chip" onclick="setCategoryFilter('anomalies', this)">🚨 Anomalies ({{ anomaly_count }})</button>
+        <button class="chip" onclick="setCategoryFilter('login', this)">🔑 Logins</button>
+        <button class="chip" onclick="setCategoryFilter('sudo', this)">⚡ Sudo</button>
+        <button class="chip" onclick="setCategoryFilter('ssh', this)">🛡️ SSH / Auth</button>
+      </div>
+    </div>
+
+    <div class="log-table-container">
+      <table class="log-table" id="systemLogTable">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Account</th>
+            <th>Event Category</th>
+            <th>Source IP / Origin</th>
+            <th>Score</th>
+            <th>Raw Log</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for se in all_events %}
+          <tr class="log-row" 
+              data-user="{{ se.event.username|lower }}" 
+              data-ip="{{ (se.event.source_ip or '')|lower }}" 
+              data-type="{{ se.event.event_type|lower }}"
+              data-score="{{ se.score }}"
+              data-raw="{{ se.event.raw_line|lower }}">
+            <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); white-space: nowrap;">
+              {{ se.event.timestamp }}
+            </td>
+            <td>
+              <span class="user-badge">{{ se.event.username }}</span>
+            </td>
+            <td>
+              {% if "sudo" in se.event.event_type %}
+                <span class="triage-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">SUDO</span>
+              {% elif "fail" in se.event.event_type %}
+                <span class="triage-badge" style="background: rgba(244, 63, 94, 0.15); color: #f43f5e;">FAILED</span>
+              {% elif "key" in se.event.event_type %}
+                <span class="triage-badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">SSH KEY</span>
+              {% else %}
+                <span class="triage-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">LOGIN</span>
+              {% endif %}
+            </td>
+            <td style="font-family: var(--font-mono); font-size: 12px;">
+              {{ se.event.source_ip or 'local / console' }}
+              {% if se.enrichment and se.enrichment.asn not in ['unknown', 'private'] %}
+                <span style="color: var(--text-muted); font-size: 11px;">({{ se.enrichment.asn }})</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="triage-badge {% if se.score >= 40 %}badge-critical{% else %}badge-nominal{% endif %}">
+                {{ se.score }}
+              </span>
+            </td>
+            <td>
+              <button class="expand-btn" onclick="toggleRawLine({{ loop.index0 }})">Inspect</button>
+            </td>
+          </tr>
+          <tr id="raw-drawer-{{ loop.index0 }}" class="log-raw-drawer">
+            <td colspan="6">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>Raw Log Entry Payload:</strong>
+                <button class="expand-btn" onclick="copyRawLine(`{{ se.event.raw_line }}`)">Copy Line</button>
+              </div>
+              <div class="log-raw-content">{{ se.event.raw_line or '[Generated synthetic / unified log token]' }}</div>
+              {% if se.reasons|length > 0 %}
+                <div style="margin-top: 8px; color: #f87171;">
+                  <strong>Flagged reasons:</strong> {{ se.reasons|join("; ") }}
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById('pane-' + tabId).classList.add('active');
+    document.getElementById('tab-btn-' + tabId).classList.add('active');
+  }
+
+  function toggleRawLine(index) {
+    const drawer = document.getElementById('raw-drawer-' + index);
+    drawer.classList.toggle('open');
+  }
+
+  function copyRawLine(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Raw log line copied to clipboard.');
+    });
+  }
+
+  function copyAlertText(user, score, ts) {
+    const msg = `[AuthCanary Alert] User: ${user} | Score: ${score}/100 | Time: ${ts}`;
+    navigator.clipboard.writeText(msg).then(() => {
+      alert('Incident summary copied.');
+    });
+  }
+
+  let currentCategory = 'all';
+
+  function setCategoryFilter(cat, btn) {
+    currentCategory = cat;
+    document.querySelectorAll('.filter-chips .chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    filterLogs();
+  }
+
+  function filterLogs() {
+    const query = document.getElementById('logSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#systemLogTable tbody .log-row');
+
+    rows.forEach(row => {
+      const user = row.getAttribute('data-user') || '';
+      const ip = row.getAttribute('data-ip') || '';
+      const type = row.getAttribute('data-type') || '';
+      const score = parseInt(row.getAttribute('data-score') || '0', 10);
+      const raw = row.getAttribute('data-raw') || '';
+
+      const matchesText = user.includes(query) || ip.includes(query) || type.includes(query) || raw.includes(query) || score.toString().includes(query);
+      
+      let matchesCat = true;
+      if (currentCategory === 'anomalies') {
+        matchesCat = score >= {{ alert_threshold }};
+      } else if (currentCategory === 'login') {
+        matchesCat = type.includes('login');
+      } else if (currentCategory === 'sudo') {
+        matchesCat = type.includes('sudo');
+      } else if (currentCategory === 'ssh') {
+        matchesCat = type.includes('ssh') || type.includes('key');
+      }
+
+      if (matchesText && matchesCat) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
