@@ -1,5 +1,5 @@
 """
-SentinelLog — Log source adapters.
+AuthCanary — Log source adapters.
 
 Each adapter normalizes a platform-specific log format into AuthEvent objects.
 The get_adapter() factory auto-detects which adapter to use at runtime.

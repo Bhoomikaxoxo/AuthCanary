@@ -1,5 +1,5 @@
 """
-SentinelLog — Ingestion cursor persistence.
+AuthCanary — Ingestion cursor persistence.
 
 Tracks file offsets / journal cursors so re-running doesn't reprocess
 the entire log. Persists to a JSON file at the path specified in config.

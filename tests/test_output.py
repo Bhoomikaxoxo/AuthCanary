@@ -1,5 +1,5 @@
 """
-SentinelLog — Tests for the output layer.
+AuthCanary — Tests for the output layer.
 
 Tests report generation (JSON + HTML dashboard) and alert delivery channels
 (ConsoleChannel and NtfyChannel with mocked HTTP).
@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import requests
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -216,3 +217,52 @@ def test_get_channels_factory():
     channels_c = get_channels(config_console_only)
     assert len(channels_c) == 1
     assert isinstance(channels_c[0], ConsoleChannel)
+
+
+def test_server_status_and_routes(tmp_path):
+    import threading
+    from http.server import HTTPServer
+    from output.server import AuthCanaryHandler
+
+    # Set up mock report files in tmp_path
+    html_file = tmp_path / "report.html"
+    html_file.write_text("<!DOCTYPE html><html><body><h1>Test Dashboard</h1></body></html>", encoding="utf-8")
+    json_file = tmp_path / "report.json"
+    json_file.write_text('{"status": "ok", "anomalies": 0}', encoding="utf-8")
+
+    AuthCanaryHandler.output_dir = tmp_path
+
+    # Start ephemeral server
+    server = HTTPServer(("127.0.0.1", 0), AuthCanaryHandler)
+    port = server.server_port
+
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    base_url = f"http://127.0.0.1:{port}"
+    try:
+        # Test /api/status
+        res_status = requests.get(f"{base_url}/api/status")
+        assert res_status.status_code == 200
+        data = res_status.json()
+        assert data["status"] == "online"
+        assert data["report_exists"] is True
+
+        # Test / (index)
+        res_root = requests.get(f"{base_url}/")
+        assert res_root.status_code == 200
+        assert "Test Dashboard" in res_root.text
+        assert "AuthCanary Live Refresh Hook" in res_root.text
+
+        # Test /report.json
+        res_json = requests.get(f"{base_url}/report.json")
+        assert res_json.status_code == 200
+        assert res_json.json()["status"] == "ok"
+
+        # Test 404
+        res_404 = requests.get(f"{base_url}/nonexistent")
+        assert res_404.status_code == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+

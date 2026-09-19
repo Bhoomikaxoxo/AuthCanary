@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.sentinellog.agent</string>
+    <string>com.authcanary.agent</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -15,16 +15,16 @@
     </array>
 
     <key>WorkingDirectory</key>
-    <string>SENTINELLOG_DIR_PLACEHOLDER</string>
+    <string>AUTHCANARY_DIR_PLACEHOLDER</string>
 
     <key>StartInterval</key>
     <integer>900</integer> <!-- 15 minutes -->
 
     <key>StandardOutPath</key>
-    <string>/tmp/sentinellog.stdout.log</string>
+    <string>/tmp/authcanary.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/sentinellog.stderr.log</string>
+    <string>/tmp/authcanary.stderr.log</string>
 
     <key>RunAtLoad</key>
     <true/>

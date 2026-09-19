@@ -1,5 +1,5 @@
 """
-SentinelLog — IP enrichment cache.
+AuthCanary — IP enrichment cache.
 
 SQLite-backed cache so repeated IPs don't re-hit the API.
 Lives in the same database as the baseline tables.

@@ -1,5 +1,5 @@
 [Unit]
-Description=SentinelLog — Run every 15 minutes
+Description=AuthCanary — Run every 15 minutes
 
 [Timer]
 OnBootSec=5min

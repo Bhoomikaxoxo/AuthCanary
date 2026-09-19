@@ -1,5 +1,5 @@
 """
-SentinelLog — Engine data models.
+AuthCanary — Engine data models.
 
 Dataclasses consumed by the scoring engine and output layer.
 Kept in their own file so scoring.py stays focused on logic.

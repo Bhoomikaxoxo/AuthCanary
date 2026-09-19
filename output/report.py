@@ -1,5 +1,5 @@
 """
-SentinelLog — Report generation.
+AuthCanary — Report generation.
 
 Produces two outputs each run:
   1. report.json  — machine-readable, full detail

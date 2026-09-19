@@ -1,5 +1,5 @@
 """
-SentinelLog — Tests for the enrichment layer.
+AuthCanary — Tests for the enrichment layer.
 
 Tests cache behavior, graceful degradation, and rate-limiting.
 Uses mocked HTTP responses — no actual API calls.

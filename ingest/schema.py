@@ -1,5 +1,5 @@
 """
-SentinelLog — Common event schema.
+AuthCanary — Common event schema.
 
 Every adapter normalizes raw log lines into this single dataclass.
 All downstream modules (enrichment, scoring, output) consume only this type.

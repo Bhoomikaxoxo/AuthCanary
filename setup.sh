@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────
-# SentinelLog — Setup Script
+# AuthCanary — Setup Script
 #
 # Detects the OS, creates a venv, installs deps, sets up storage,
 # and optionally installs a scheduled job (with user confirmation).
@@ -9,10 +9,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-STORAGE_DIR="$HOME/.sentinellog"
+STORAGE_DIR="$HOME/.authcanary"
 
-echo "SentinelLog Setup"
-echo "═════════════════"
+echo "AuthCanary Setup"
+echo "════════════════"
 echo ""
 
 # ── Python check ──────────────────────────────────────────────────
@@ -55,7 +55,7 @@ if [ "$OS" = "Linux" ]; then
         else
             echo ""
             echo "  ⚠ Log source: $AUTH_LOG exists but is NOT readable."
-            echo "    You may need to run SentinelLog with elevated privileges,"
+            echo "    You may need to run AuthCanary with elevated privileges,"
             echo "    or add your user to the 'adm' group:"
             echo ""
             echo "      sudo usermod -aG adm \$USER"
@@ -80,7 +80,7 @@ echo ""
 
 # ── Scheduled job (requires confirmation) ─────────────────────────
 
-echo "Would you like to install a scheduled job to run SentinelLog"
+echo "Would you like to install a scheduled job to run AuthCanary"
 echo "every 15 minutes automatically?"
 echo ""
 
@@ -93,27 +93,27 @@ if [[ "$INSTALL_JOB" =~ ^[Yy]$ ]]; then
         mkdir -p "$UNIT_DIR"
 
         # Update service file with actual path
-        sed "s|%h/sentinellog|$SCRIPT_DIR|g" \
-            "$SCRIPT_DIR/schedulers/sentinellog.service" > "$UNIT_DIR/sentinellog.service"
-        cp "$SCRIPT_DIR/schedulers/sentinellog.timer" "$UNIT_DIR/sentinellog.timer"
+        sed "s|%h/authcanary|$SCRIPT_DIR|g" \
+            "$SCRIPT_DIR/schedulers/authcanary.service" > "$UNIT_DIR/authcanary.service"
+        cp "$SCRIPT_DIR/schedulers/authcanary.timer" "$UNIT_DIR/authcanary.timer"
 
         systemctl --user daemon-reload
-        systemctl --user enable --now sentinellog.timer
+        systemctl --user enable --now authcanary.timer
         echo "  ✓ systemd timer installed and started."
-        echo "    Check status: systemctl --user status sentinellog.timer"
+        echo "    Check status: systemctl --user status authcanary.timer"
 
     elif [ "$OS" = "Darwin" ]; then
         # launchd
         PLIST_DIR="$HOME/Library/LaunchAgents"
-        PLIST_NAME="com.sentinellog.agent.plist"
+        PLIST_NAME="com.authcanary.agent.plist"
         mkdir -p "$PLIST_DIR"
 
-        sed "s|SENTINELLOG_DIR_PLACEHOLDER|$SCRIPT_DIR|g" \
-            "$SCRIPT_DIR/schedulers/com.sentinellog.plist" > "$PLIST_DIR/$PLIST_NAME"
+        sed "s|AUTHCANARY_DIR_PLACEHOLDER|$SCRIPT_DIR|g" \
+            "$SCRIPT_DIR/schedulers/com.authcanary.agent.plist" > "$PLIST_DIR/$PLIST_NAME"
 
         launchctl load "$PLIST_DIR/$PLIST_NAME" 2>/dev/null || true
         echo "  ✓ launchd agent installed."
-        echo "    Check status: launchctl list | grep sentinellog"
+        echo "    Check status: launchctl list | grep authcanary"
 
     else
         echo "  ⚠ Automatic installation not supported on this OS."

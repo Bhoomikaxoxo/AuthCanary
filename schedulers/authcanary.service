@@ -1,0 +1,13 @@
+[Unit]
+Description=AuthCanary — Auth log anomaly detection
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env python3 %h/authcanary/main.py --config %h/authcanary/config.yaml
+WorkingDirectory=%h/authcanary
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

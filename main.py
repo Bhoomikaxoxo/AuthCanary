@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SentinelLog — CLI entry point.
+AuthCanary — CLI entry point.
 
 Pipeline: detect adapter → read events → enrich IPs → score against
 baseline → update baseline → generate report → fire alerts → save cursor.
@@ -26,6 +26,7 @@ from engine.scoring import Scorer
 from engine.models import ScoredEvent
 from output.report import generate_report
 from output.alerts import get_channels
+from output.server import start_server
 
 
 def load_config(config_path: str) -> dict:
@@ -204,15 +205,37 @@ def main() -> None:
     parser.add_argument(
         "--serve",
         action="store_true",
-        help="[Stretch goal — not implemented] Start local server for "
-             "live dashboard auto-refresh",
+        help="Start local HTTP server for live dashboard viewing and auto-refresh",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port for local dashboard server (default: 8080)",
+    )
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Bind address for local dashboard server (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--open",
+        action="store_true",
+        help="Automatically open web browser on launch",
     )
 
     args = parser.parse_args()
 
     if args.serve:
-        print("⚠ --serve is a documented stretch goal and is not yet implemented.")
-        print("  Open output/report.html directly in your browser instead.")
+        print("AuthCanary v1\n")
+        config = load_config(args.config)
+        output_dir = config.get("output", {}).get("directory", "./output")
+        start_server(
+            output_dir=output_dir,
+            port=args.port,
+            host=args.bind,
+            open_browser=args.open,
+        )
         sys.exit(0)
 
     print("AuthCanary v1\n")

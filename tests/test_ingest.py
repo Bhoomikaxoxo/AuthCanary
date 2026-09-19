@@ -1,5 +1,5 @@
 """
-SentinelLog — Tests for the ingestion layer.
+AuthCanary — Tests for the ingestion layer.
 
 Tests regex parsing, cursor persistence, and event schema validation.
 All tests use embedded sample log lines — no actual /var/log/auth.log required.

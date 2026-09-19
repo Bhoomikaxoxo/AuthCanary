@@ -1,5 +1,5 @@
 """
-SentinelLog — Anomaly scoring engine.
+AuthCanary — Anomaly scoring engine.
 
 Each new event gets a numeric anomaly score (0–100) based on how much
 it deviates from the user's established baseline. This file is entirely

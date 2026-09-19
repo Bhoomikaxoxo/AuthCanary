@@ -1,5 +1,5 @@
 """
-SentinelLog — Baseline storage and warm-up logic.
+AuthCanary — Baseline storage and warm-up logic.
 
 Manages SQLite tables that track "what's normal" for each user:
   - Login-hour histogram (0–23)

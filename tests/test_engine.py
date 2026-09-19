@@ -1,5 +1,5 @@
 """
-SentinelLog — Tests for the engine layer.
+AuthCanary — Tests for the engine layer.
 
 Tests baseline persistence, warm-up tracking, statistics calculation,
 and the anomaly scoring engine (weights, signals, thresholds, and limits).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SentinelLog — Synthetic auth.log generator.
+AuthCanary — Synthetic auth.log generator.
 
 Produces a realistic multi-day auth.log with:
   - Normal daily patterns for 3 users across ~10 days
@@ -214,7 +214,7 @@ def generate_fake_log(output_path: str, days: int = 10) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate synthetic auth.log for SentinelLog testing.",
+        description="Generate synthetic auth.log for AuthCanary testing.",
     )
     parser.add_argument(
         "--output", "-o",

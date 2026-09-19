@@ -1,5 +1,5 @@
 """
-SentinelLog — Alert channels.
+AuthCanary — Alert channels.
 
 ConsoleChannel is always active. NtfyChannel sends push notifications
 to a free ntfy.sh topic (no signup required). The --serve flag and
@@ -49,7 +49,7 @@ class NtfyChannel(AlertChannel):
         alerts:
           ntfy:
             enabled: true
-            topic: "sentinellog-alerts"
+            topic: "authcanary-alerts"
             server: "https://ntfy.sh"
     """
 

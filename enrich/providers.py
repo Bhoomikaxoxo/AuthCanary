@@ -1,5 +1,5 @@
 """
-SentinelLog — IP enrichment providers.
+AuthCanary — IP enrichment providers.
 
 Resolves source IPs to ASN, org, and rough geolocation using free APIs.
 Pluggable: implement IPEnrichmentProvider to swap in a paid provider
