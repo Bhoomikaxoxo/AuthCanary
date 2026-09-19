@@ -3,555 +3,403 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuthCanary — Security Triage Dashboard</title>
+<title>AuthCanary — Triage Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* ── Design Tokens ───────────────────────────────────────────── */
   :root {
-    --bg-page: #0c0c10;
-    --bg-surface: #141419;
-    --bg-card: #1a1a22;
-    --bg-card-hover: #20202a;
-    --bg-elevated: #242430;
-    --bg-inset: #111116;
+    /* Near-black with very subtle warmth */
+    --bg-0: #09090b;
+    --bg-1: #0f0f12;
+    --bg-2: #16161a;
+    --bg-3: #1c1c22;
+    --bg-4: #232329;
 
-    --border-subtle: rgba(255, 255, 255, 0.05);
-    --border-default: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(255, 255, 255, 0.14);
+    --border-0: rgba(255,255,255,0.04);
+    --border-1: rgba(255,255,255,0.07);
+    --border-2: rgba(255,255,255,0.12);
 
-    --text-primary: #ededf0;
-    --text-secondary: #9494a0;
-    --text-muted: #6b6b78;
-    --text-faint: #4a4a56;
+    /* Monochrome text — color is EARNED, not default */
+    --t1: #e8e8ed;
+    --t2: #8e8e9a;
+    --t3: #5c5c66;
+    --t4: #3a3a42;
 
-    /* Warm accent palette — no neon */
-    --accent: #7c6bf0;
-    --accent-hover: #8e7ff5;
-    --accent-soft: rgba(124, 107, 240, 0.10);
-    --accent-border: rgba(124, 107, 240, 0.22);
-    --accent-glow: rgba(124, 107, 240, 0.06);
+    /* Single alarm color — only appears for real threats */
+    --alarm: #e54d4d;
+    --alarm-dim: rgba(229, 77, 77, 0.12);
+    --alarm-border: rgba(229, 77, 77, 0.25);
 
-    --gradient-accent: linear-gradient(135deg, #7c6bf0, #5b8cf0);
-    --gradient-warm: linear-gradient(135deg, #f0956b, #f06b8e);
-    --gradient-ok: linear-gradient(135deg, #4ade80, #22d3ee);
+    --warn: #d4a24d;
+    --warn-dim: rgba(212, 162, 77, 0.10);
+    --warn-border: rgba(212, 162, 77, 0.20);
 
-    --status-danger: #e5484d;
-    --status-danger-soft: rgba(229, 72, 77, 0.10);
-    --status-danger-border: rgba(229, 72, 77, 0.18);
+    --ok: #3d9a5a;
+    --ok-dim: rgba(61, 154, 90, 0.10);
+    --ok-border: rgba(61, 154, 90, 0.18);
 
-    --status-warn: #e5a84d;
-    --status-warn-soft: rgba(229, 168, 77, 0.10);
-    --status-warn-border: rgba(229, 168, 77, 0.18);
+    --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+    --sans: 'Inter', -apple-system, system-ui, sans-serif;
 
-    --status-ok: #46a758;
-    --status-ok-soft: rgba(70, 167, 88, 0.10);
-    --status-ok-border: rgba(70, 167, 88, 0.18);
-
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
-
-    --shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.2);
-    --shadow-hover: 0 8px 30px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.3);
-    --shadow-glow: 0 0 40px var(--accent-glow);
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: var(--font-sans);
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    line-height: 1.55;
+    font-family: var(--sans);
+    background: var(--bg-0);
+    color: var(--t1);
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
-    overflow-x: hidden;
+    line-height: 1.5;
   }
 
-  /* Subtle animated grain texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Ambient background gradients */
-  body::after {
-    content: '';
-    position: fixed;
-    top: -30%;
-    left: -10%;
-    width: 60%;
-    height: 60%;
-    background: radial-gradient(ellipse, rgba(124, 107, 240, 0.06) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-    animation: ambientDrift 20s ease-in-out infinite alternate;
-  }
-
-  @keyframes ambientDrift {
-    0% { transform: translate(0, 0) scale(1); }
-    100% { transform: translate(10%, 8%) scale(1.15); }
-  }
-
-  .app-container {
-    max-width: 1280px;
+  .shell {
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 32px 28px 80px;
-    position: relative;
-    z-index: 1;
+    padding: 36px 32px 80px;
   }
 
-  /* ── Staggered reveal animation ──────────────────────────────── */
-  .reveal {
-    opacity: 0;
-    transform: translateY(12px);
-    animation: revealUp 0.5s ease forwards;
+  /* ── ICON SYSTEM (Lucide inline SVGs, 1.5px stroke) ──────────── */
+  .i {
+    width: 16px; height: 16px;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
   }
+  .i-lg { width: 20px; height: 20px; }
 
-  @keyframes revealUp {
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .reveal-d1 { animation-delay: 0.05s; }
-  .reveal-d2 { animation-delay: 0.1s; }
-  .reveal-d3 { animation-delay: 0.15s; }
-  .reveal-d4 { animation-delay: 0.2s; }
-  .reveal-d5 { animation-delay: 0.25s; }
-  .reveal-d6 { animation-delay: 0.3s; }
-
-  /* ── Header ──────────────────────────────────────────────────── */
-  .top-bar {
+  /* ── HEADER ──────────────────────────────────────────────────── */
+  .hdr {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 24px;
-    border-bottom: 1px solid var(--border-subtle);
-    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-0);
+    margin-bottom: 32px;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px;
   }
 
-  .brand-group {
+  .hdr-left {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
-  .brand-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-md);
-    background: var(--gradient-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 4px 20px rgba(124, 107, 240, 0.2);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  .hdr-mark {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
   }
 
-  .brand-icon:hover {
-    transform: scale(1.08) rotate(-3deg);
-    box-shadow: 0 6px 28px rgba(124, 107, 240, 0.3);
-  }
+  .hdr-mark svg { width: 16px; height: 16px; stroke: var(--t2); fill: none; stroke-width: 1.5; }
 
-  .brand-title h1 {
-    font-size: 19px;
-    font-weight: 700;
-    letter-spacing: -0.025em;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-  }
-
-  .badge-version {
-    font-size: 10px;
+  .hdr h1 {
+    font-family: var(--mono);
+    font-size: 14px;
     font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--t1);
+  }
+
+  .hdr h1 span {
+    font-weight: 400;
+    color: var(--t3);
+    margin-left: 6px;
+  }
+
+  .hdr-meta {
+    display: flex; gap: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--t3);
+  }
+
+  .hdr-meta strong { color: var(--t2); font-weight: 500; }
+
+  /* ── HERO SECTION — one focal point ──────────────────────────── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+    margin-bottom: 40px;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--border-0);
+  }
+
+  @media (max-width: 700px) {
+    .hero { grid-template-columns: 1fr; gap: 20px; }
+  }
+
+  .hero-primary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .hero-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    color: var(--accent);
-    border: 1px solid var(--accent-border);
+    letter-spacing: 0.1em;
+    color: var(--t3);
   }
 
-  .brand-subtitle {
+  .hero-number {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 96px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    /* Default: monochrome. Color only if anomalies > 0 */
+    color: var(--t1);
+  }
+
+  .hero-number.has-alerts {
+    color: var(--alarm);
+    text-shadow: 0 0 60px rgba(229, 77, 77, 0.2);
+  }
+
+  .hero-context {
     font-size: 13px;
-    color: var(--text-muted);
-    margin-top: 2px;
+    color: var(--t3);
+    margin-top: 4px;
   }
 
-  .system-meta {
+  .hero-context strong {
+    color: var(--t2);
+    font-weight: 500;
+  }
+
+  .hero-stats {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-  }
-
-  .meta-tag {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    padding: 6px 11px;
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    transition: border-color 0.2s, background 0.2s;
-  }
-
-  .meta-tag:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-card-hover);
-  }
-
-  .meta-tag strong {
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-
-  /* ── Threat Banner ───────────────────────────────────────────── */
-  .threat-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 22px;
-    border-radius: var(--radius-lg);
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    gap: 16px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.3s ease;
-  }
-
-  .threat-banner:hover {
-    transform: translateY(-1px);
-  }
-
-  /* Shimmer effect on banner */
-  .threat-banner::before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 50%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
-    animation: shimmer 6s ease-in-out infinite;
-  }
-
-  @keyframes shimmer {
-    0%, 100% { left: -100%; }
-    50% { left: 150%; }
-  }
-
-  .threat-banner.threat-CRITICAL {
-    background: var(--status-danger-soft);
-    border: 1px solid var(--status-danger-border);
-  }
-
-  .threat-banner.threat-ELEVATED {
-    background: var(--status-warn-soft);
-    border: 1px solid var(--status-warn-border);
-  }
-
-  .threat-banner.threat-NOMINAL, .threat-banner.threat-MODERATE {
-    background: var(--status-ok-soft);
-    border: 1px solid var(--status-ok-border);
-  }
-
-  .threat-left {
-    display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 14px;
+    min-width: 200px;
   }
 
-  .threat-indicator {
-    width: 10px;
-    height: 10px;
+  .hero-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-0);
+  }
+
+  .hero-stat:last-child { border-bottom: none; }
+
+  .hero-stat-label {
+    font-size: 12px;
+    color: var(--t3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hero-stat-val {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--t2);
+  }
+
+  /* ── STATUS STRIP (replaces giant banner) ────────────────────── */
+  .status-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--r-md);
+    margin-bottom: 28px;
+    font-size: 12px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  .status-strip .dot {
+    width: 6px; height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
-    position: relative;
   }
 
-  .threat-indicator::after {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    border: 1.5px solid currentColor;
-    animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-    opacity: 0;
+  .status-strip.s-ok {
+    background: var(--ok-dim);
+    border: 1px solid var(--ok-border);
+    color: var(--ok);
+  }
+  .status-strip.s-ok .dot { background: var(--ok); }
+
+  .status-strip.s-warn {
+    background: var(--warn-dim);
+    border: 1px solid var(--warn-border);
+    color: var(--warn);
+  }
+  .status-strip.s-warn .dot { background: var(--warn); }
+
+  .status-strip.s-danger {
+    background: var(--alarm-dim);
+    border: 1px solid var(--alarm-border);
+    color: var(--alarm);
+  }
+  .status-strip.s-danger .dot { background: var(--alarm); }
+
+  .status-strip .s-detail {
+    color: var(--t3);
+    margin-left: auto;
+    font-weight: 400;
   }
 
-  @keyframes ping {
-    0% { transform: scale(1); opacity: 0.6; }
-    75%, 100% { transform: scale(2.2); opacity: 0; }
-  }
-
-  .threat-CRITICAL .threat-indicator { background: var(--status-danger); color: var(--status-danger); }
-  .threat-ELEVATED .threat-indicator { background: var(--status-warn); color: var(--status-warn); }
-  .threat-NOMINAL .threat-indicator, .threat-MODERATE .threat-indicator { background: var(--status-ok); color: var(--status-ok); }
-
-  .threat-headline h2 {
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .threat-CRITICAL .threat-headline h2 { color: var(--status-danger); }
-  .threat-ELEVATED .threat-headline h2 { color: var(--status-warn); }
-  .threat-NOMINAL .threat-headline h2, .threat-MODERATE .threat-headline h2 { color: var(--status-ok); }
-
-  .threat-headline p {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-  }
-
-  .threat-score-pill {
+  /* ── TABS ────────────────────────────────────────────────────── */
+  .tabs {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(0,0,0,0.3);
-    padding: 7px 14px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-subtle);
-    backdrop-filter: blur(8px);
-  }
-
-  .threat-score-pill .label {
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-  }
-
-  .threat-score-pill .value {
-    font-family: var(--font-mono);
-    font-size: 17px;
-    font-weight: 700;
-  }
-
-  /* ── Tab Navigation ──────────────────────────────────────────── */
-  .nav-tabs {
-    display: flex;
-    gap: 2px;
+    gap: 0;
     margin-bottom: 28px;
-    background: var(--bg-surface);
-    padding: 4px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-0);
   }
 
-  .tab-btn {
-    background: transparent;
+  .tab {
+    background: none;
     border: none;
-    color: var(--text-muted);
-    padding: 10px 18px;
-    border-radius: var(--radius-sm);
-    font-family: var(--font-sans);
+    color: var(--t3);
+    padding: 10px 16px;
+    font-family: var(--sans);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
     display: flex;
     align-items: center;
-    gap: 7px;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    position: relative;
+    gap: 6px;
   }
 
-  .tab-btn:hover {
-    color: var(--text-secondary);
-    background: rgba(255,255,255,0.03);
+  .tab:hover { color: var(--t2); }
+
+  .tab.active {
+    color: var(--t1);
+    border-bottom-color: var(--t1);
   }
 
-  .tab-btn.active {
-    color: var(--text-primary);
-    background: var(--bg-card);
-    box-shadow: var(--shadow-card);
-    font-weight: 600;
-  }
-
-  .tab-badge {
+  .tab .cnt {
+    font-family: var(--mono);
     font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.06);
-    color: var(--text-muted);
-  }
-
-  .tab-btn.active .tab-badge.badge-alert {
-    background: var(--status-danger);
-    color: #fff;
-    animation: badgePulse 2s ease-in-out infinite;
-  }
-
-  @keyframes badgePulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-
-  /* ── Tab Panes ───────────────────────────────────────────────── */
-  .tab-pane { display: none; }
-  .tab-pane.active {
-    display: block;
-    animation: fadeSlide 0.3s ease forwards;
-  }
-
-  @keyframes fadeSlide {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── KPI Cards ───────────────────────────────────────────────── */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-    margin-bottom: 28px;
-  }
-
-  @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 550px) { .kpi-grid { grid-template-columns: 1fr; } }
-
-  .kpi-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    padding: 20px 22px;
-    box-shadow: var(--shadow-card);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .kpi-card::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--gradient-accent);
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-
-  .kpi-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-hover);
-    border-color: var(--border-hover);
-  }
-
-  .kpi-card:hover::after {
-    opacity: 1;
-  }
-
-  .kpi-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  .kpi-title {
-    font-size: 11px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--text-muted);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--bg-3);
+    color: var(--t3);
   }
 
-  .kpi-icon { font-size: 16px; opacity: 0.5; }
-
-  .kpi-value {
-    font-size: 32px;
-    font-weight: 800;
-    font-family: var(--font-mono);
-    line-height: 1;
-    margin-bottom: 8px;
-    letter-spacing: -0.03em;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .tab.active .cnt {
+    background: var(--bg-4);
+    color: var(--t2);
   }
 
-  .kpi-subtext {
-    font-size: 12px;
-    color: var(--text-muted);
+  .tab .cnt.cnt-alert {
+    background: var(--alarm);
+    color: #fff;
   }
 
-  /* ── Panel Cards ─────────────────────────────────────────────── */
-  .analytics-row {
-    display: grid;
-    grid-template-columns: 5fr 3fr;
-    gap: 14px;
-    margin-bottom: 28px;
-  }
+  /* ── PANES ───────────────────────────────────────────────────── */
+  .pane { display: none; }
+  .pane.active { display: block; }
 
-  @media (max-width: 900px) { .analytics-row { grid-template-columns: 1fr; } }
-
-  .dashboard-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
+  /* ── PANELS (layered depth: bg-1 → bg-2 → bg-3) ─────────────── */
+  .panel {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-lg);
     padding: 24px;
-    box-shadow: var(--shadow-card);
-    transition: border-color 0.2s;
+    margin-bottom: 16px;
   }
 
-  .dashboard-panel:hover {
-    border-color: var(--border-default);
+  .panel-inset {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-md);
+    padding: 20px;
   }
 
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 18px;
+  .panel-deep {
+    background: var(--bg-0);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-sm);
+    padding: 14px;
   }
 
   .panel-title {
-    font-size: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--t3);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
-  .panel-subtitle {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 2px;
+  /* ── MAIN GRID (chart + sidebar) ─────────────────────────────── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 16px;
+    margin-bottom: 16px;
   }
 
-  /* ── 24h Chart ───────────────────────────────────────────────── */
+  @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── HOUR CHART (tall, gridlines, colored bars) ──────────────── */
+  .chart-wrap {
+    position: relative;
+  }
+
+  .chart-grid {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+    padding-bottom: 26px;
+  }
+
+  .chart-gridline {
+    border-bottom: 1px solid var(--border-0);
+    position: relative;
+  }
+
+  .chart-gridline::before {
+    content: attr(data-val);
+    position: absolute;
+    right: 100%;
+    bottom: -6px;
+    margin-right: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--t4);
+    white-space: nowrap;
+  }
+
   .chart-bars {
     display: flex;
     align-items: flex-end;
-    gap: 4px;
-    height: 130px;
-    padding-top: 16px;
-    border-bottom: 1px solid var(--border-subtle);
+    gap: 3px;
+    height: 200px;
+    position: relative;
+    padding-left: 36px;
   }
 
   .chart-col {
@@ -562,752 +410,574 @@
     height: 100%;
     justify-content: flex-end;
     position: relative;
+    cursor: crosshair;
   }
 
   .bar {
     width: 100%;
-    min-height: 3px;
-    border-radius: 4px 4px 0 0;
-    background: var(--accent);
-    opacity: 0.5;
-    transition: opacity 0.2s, transform 0.2s, height 0.4s ease;
-    transform-origin: bottom;
+    min-height: 2px;
+    border-radius: 2px 2px 0 0;
+    transition: opacity 0.15s;
+  }
+
+  .bar-normal {
+    background: var(--t4);
+    opacity: 0.6;
+  }
+
+  .bar-active {
+    background: var(--t2);
+    opacity: 0.8;
+  }
+
+  .bar-hot {
+    background: var(--alarm);
+    opacity: 0.9;
   }
 
   .chart-col:hover .bar {
-    opacity: 0.9;
-    transform: scaleY(1.05);
-    background: var(--accent-hover);
+    opacity: 1;
   }
 
-  .bar-label {
+  .bar-lbl {
+    font-family: var(--mono);
     font-size: 9px;
-    font-family: var(--font-mono);
-    color: var(--text-faint);
-    margin-top: 6px;
+    color: var(--t4);
+    margin-top: 8px;
+    line-height: 1;
   }
 
-  .bar-tooltip {
+  .bar-tip {
     position: absolute;
-    bottom: 100%;
+    bottom: calc(100% + 4px);
     left: 50%;
     transform: translateX(-50%) translateY(4px);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-hover);
-    color: var(--text-primary);
+    background: var(--bg-4);
+    border: 1px solid var(--border-2);
+    color: var(--t1);
+    font-family: var(--mono);
     font-size: 11px;
-    padding: 4px 9px;
-    border-radius: 6px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 4px;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.15s, transform 0.15s;
-    margin-bottom: 4px;
-    font-family: var(--font-mono);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.12s, transform 0.12s;
+    z-index: 10;
   }
 
-  .chart-col:hover .bar-tooltip {
+  .chart-col:hover .bar-tip {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
 
-  /* ── Warmup / Baseline ───────────────────────────────────────── */
-  .warmup-box {
-    background: var(--bg-inset);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 14px;
-    margin-top: 12px;
-  }
-
-  .warmup-progress-bar {
-    height: 6px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 999px;
-    overflow: hidden;
-    margin: 8px 0;
-  }
-
-  .warmup-fill {
-    height: 100%;
-    background: var(--gradient-accent);
-    border-radius: 999px;
-    transition: width 0.6s ease;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .warmup-fill::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
-    animation: progressShine 2s ease-in-out infinite;
-  }
-
-  @keyframes progressShine {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-
-  .warmup-desc {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
-
-  /* ── User Table ──────────────────────────────────────────────── */
-  .user-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .user-table th {
-    text-align: left;
-    padding: 10px 14px;
-    color: var(--text-muted);
-    font-weight: 600;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .user-table td {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border-subtle);
-    transition: background 0.15s;
-  }
-
-  .user-table tr:hover td {
-    background: rgba(255,255,255,0.02);
-  }
-
-  .user-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--font-mono);
-    font-weight: 600;
-    font-size: 13px;
-  }
-
-  .user-avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent-soft);
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    border: 1px solid var(--accent-border);
-  }
-
-  /* ── Badges ──────────────────────────────────────────────────── */
-  .triage-badge {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    padding: 3px 9px;
-    border-radius: var(--radius-sm);
-    letter-spacing: 0.04em;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .badge-critical {
-    background: var(--status-danger-soft);
-    color: var(--status-danger);
-    border: 1px solid var(--status-danger-border);
-  }
-
-  .badge-elevated {
-    background: var(--status-warn-soft);
-    color: var(--status-warn);
-    border: 1px solid var(--status-warn-border);
-  }
-
-  .badge-nominal {
-    background: var(--status-ok-soft);
-    color: var(--status-ok);
-    border: 1px solid var(--status-ok-border);
-  }
-
-  /* ── Triage Deck ─────────────────────────────────────────────── */
-  .triage-deck {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .triage-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    box-shadow: var(--shadow-card);
-    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-    position: relative;
-  }
-
-  .triage-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-hover);
-  }
-
-  .triage-card.critical {
-    border-left: 3px solid var(--status-danger);
-  }
-
-  .triage-card.elevated {
-    border-left: 3px solid var(--status-warn);
-  }
-
-  .triage-card.moderate {
-    border-left: 3px solid var(--accent);
-  }
-
-  .triage-top {
+  /* ── BASELINE SIDEBAR ────────────────────────────────────────── */
+  .baseline-item {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .triage-identity {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .triage-user {
-    font-size: 16px;
-    font-weight: 700;
-  }
-
-  .triage-timestamp {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-0);
     font-size: 12px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
+  }
+  .baseline-item:last-child { border-bottom: none; }
+  .baseline-label { color: var(--t3); }
+  .baseline-val { font-family: var(--mono); font-weight: 500; color: var(--t2); }
+
+  .progress-track {
+    height: 3px;
+    background: var(--bg-0);
+    border-radius: 99px;
+    overflow: hidden;
+    margin: 10px 0;
   }
 
-  .score-dial {
-    display: flex;
-    align-items: baseline;
-    gap: 3px;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle);
-    padding: 6px 14px;
-    border-radius: var(--radius-md);
+  .progress-fill {
+    height: 100%;
+    background: var(--t3);
+    border-radius: 99px;
+    transition: width 0.6s ease;
   }
 
-  .score-dial-val {
-    font-family: var(--font-mono);
-    font-size: 22px;
-    font-weight: 800;
+  /* ── USER TABLE ──────────────────────────────────────────────── */
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
   }
 
-  .score-dial-max {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-weight: 500;
+  .tbl th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--t4);
+    border-bottom: 1px solid var(--border-1);
   }
 
-  .triage-reasons {
-    list-style: none;
-    margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .triage-reason-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
+  .tbl td {
+    padding: 10px 12px;
     font-size: 13px;
-    color: var(--text-secondary);
-    background: var(--bg-inset);
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-subtle);
-    transition: border-color 0.15s, background 0.15s;
+    border-bottom: 1px solid var(--border-0);
+    vertical-align: middle;
   }
 
-  .triage-reason-item:hover {
-    border-color: var(--border-default);
-    background: var(--bg-card-hover);
-  }
+  .tbl tr:hover td { background: rgba(255,255,255,0.015); }
 
-  .reason-bullet {
-    color: var(--status-danger);
-    font-weight: 800;
-    flex-shrink: 0;
-  }
-
-  .triage-meta-row {
+  .user-cell {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-subtle);
-    font-size: 12px;
-    color: var(--text-secondary);
   }
 
-  .meta-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--bg-inset);
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border-subtle);
-    font-family: var(--font-mono);
+  .user-av {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--t3);
+  }
+
+  .mono { font-family: var(--mono); }
+
+  .score-chip {
+    font-family: var(--mono);
     font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .sc-ok { background: var(--ok-dim); color: var(--ok); }
+  .sc-warn { background: var(--warn-dim); color: var(--warn); }
+  .sc-danger { background: var(--alarm-dim); color: var(--alarm); }
+  .sc-neutral { background: var(--bg-3); color: var(--t3); }
+
+  /* ── TRIAGE CARDS ────────────────────────────────────────────── */
+  .triage-list { display: flex; flex-direction: column; gap: 12px; }
+
+  .t-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-lg);
+    padding: 22px;
     transition: border-color 0.15s;
   }
 
-  .meta-pill:hover {
-    border-color: var(--border-hover);
-  }
+  .t-card:hover { border-color: var(--border-1); }
 
-  .action-callout {
-    margin-top: 14px;
-    padding: 14px 16px;
-    border-radius: var(--radius-sm);
-    background: var(--accent-soft);
-    border: 1px solid var(--accent-border);
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
+  .t-card.t-crit { border-left: 3px solid var(--alarm); }
+  .t-card.t-warn { border-left: 3px solid var(--warn); }
 
-  .action-callout strong {
-    color: var(--accent);
-  }
-
-  /* ── Log Stream Controls ─────────────────────────────────────── */
-  .log-stream-controls {
+  .t-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 14px;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .t-who {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .t-user {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .t-time {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--t3);
+  }
+
+  .t-score {
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  .t-score sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--t3);
+    vertical-align: baseline;
+  }
+
+  .t-reasons {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .t-reason {
+    font-size: 12px;
+    color: var(--t2);
+    padding: 7px 10px;
+    background: var(--bg-0);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-sm);
+    display: flex;
+    gap: 6px;
+  }
+
+  .t-reason-marker {
+    color: var(--t4);
+    font-family: var(--mono);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .t-footer {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-0);
+  }
+
+  .t-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 8px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-0);
+    border-radius: 99px;
+    color: var(--t3);
+  }
+
+  .t-playbook {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-0);
+    border: 1px solid var(--border-0);
+    border-left: 2px solid var(--t3);
+    border-radius: var(--r-sm);
+    font-size: 12px;
+    color: var(--t3);
+  }
+
+  .t-playbook strong { color: var(--t2); font-weight: 600; }
+
+  /* ── LOG TABLE ───────────────────────────────────────────────── */
+  .log-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
   }
 
-  .search-input-wrapper {
-    position: relative;
+  .search-box {
     flex: 1;
-    min-width: 240px;
+    min-width: 200px;
+    position: relative;
+  }
+
+  .search-box svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    stroke: var(--t4);
   }
 
   .search-input {
     width: 100%;
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    color: var(--text-primary);
-    padding: 10px 14px 10px 36px;
-    border-radius: var(--radius-md);
-    font-size: 13px;
-    font-family: var(--font-sans);
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  .search-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 13px;
-  }
-
-  .filter-chips {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .chip {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    padding: 6px 14px;
-    border-radius: 999px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    color: var(--t1);
+    padding: 8px 12px 8px 32px;
+    border-radius: var(--r-sm);
+    font-family: var(--mono);
     font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-input:focus { border-color: var(--t3); }
+  .search-input::placeholder { color: var(--t4); }
+
+  .pills { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .pill {
+    background: var(--bg-2);
+    border: 1px solid var(--border-0);
+    color: var(--t3);
+    padding: 5px 11px;
+    border-radius: 99px;
+    font-family: var(--mono);
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
+    border: 1px solid var(--border-0);
   }
 
-  .chip:hover {
-    border-color: var(--border-hover);
-    color: var(--text-secondary);
-    background: var(--bg-card-hover);
-  }
+  .pill:hover { border-color: var(--border-1); color: var(--t2); }
+  .pill.on { background: var(--t1); color: var(--bg-0); border-color: var(--t1); }
 
-  .chip.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-    box-shadow: 0 2px 10px rgba(124, 107, 240, 0.2);
-  }
-
-  /* ── Log Table ───────────────────────────────────────────────── */
-  .log-table-container {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg);
+  .log-wrap {
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-lg);
     overflow-x: auto;
-    box-shadow: var(--shadow-card);
   }
 
-  .log-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    text-align: left;
-  }
-
-  .log-table th {
-    background: rgba(255,255,255,0.02);
-    padding: 11px 16px;
-    color: var(--text-muted);
-    font-weight: 600;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .log-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    vertical-align: middle;
-    transition: background 0.12s;
-  }
-
-  .log-table tr:hover td {
-    background: rgba(255,255,255,0.015);
-  }
-
-  .log-raw-drawer {
+  .log-drawer {
     display: none;
-    background: var(--bg-inset);
-    padding: 14px 18px;
-    border-top: 1px dashed var(--border-subtle);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    word-break: break-all;
+    background: var(--bg-0);
+    border-top: 1px dashed var(--border-0);
   }
 
-  .log-raw-drawer.open {
-    display: table-row;
-    animation: drawerSlide 0.2s ease;
-  }
+  .log-drawer.open { display: table-row; }
 
-  @keyframes drawerSlide {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .log-raw-content {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 10px 14px;
-    color: var(--text-primary);
-    margin-top: 6px;
+  .log-drawer td {
+    padding: 14px 16px;
+    font-family: var(--mono);
     font-size: 11px;
+    color: var(--t2);
+    line-height: 1.5;
+  }
+
+  .log-raw-block {
+    background: var(--bg-2);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-sm);
+    padding: 10px;
+    margin-top: 6px;
+    color: var(--t1);
+    word-break: break-all;
     overflow-x: auto;
   }
 
-  .expand-btn {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    border-radius: var(--radius-sm);
-    padding: 4px 10px;
-    font-size: 11px;
+  .btn-sm {
+    background: var(--bg-3);
+    border: 1px solid var(--border-0);
+    color: var(--t3);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
     cursor: pointer;
-    font-family: var(--font-mono);
-    transition: all 0.15s;
+    transition: all 0.12s;
   }
 
-  .expand-btn:hover {
-    color: var(--text-primary);
-    border-color: var(--border-hover);
-    background: var(--bg-card-hover);
-  }
+  .btn-sm:hover { border-color: var(--border-1); color: var(--t2); }
 
-  .empty-state {
+  .empty {
     text-align: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
+    padding: 48px 20px;
+    color: var(--t3);
   }
 
-  .empty-state-icon {
-    font-size: 40px;
-    margin-bottom: 12px;
-    opacity: 0.4;
-  }
-
-  .empty-state h3 {
-    font-size: 16px;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-  }
-
-  .btn-copy {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    padding: 5px 10px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    cursor: pointer;
-    margin-left: auto;
-    transition: all 0.15s;
-  }
-
-  .btn-copy:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-    border-color: var(--border-hover);
-  }
-
-  /* ── Footer ──────────────────────────────────────────────────── */
-  .page-footer {
-    margin-top: 48px;
-    padding-top: 18px;
-    border-top: 1px solid var(--border-subtle);
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-faint);
-    letter-spacing: 0.02em;
-  }
+  .empty h3 { color: var(--t2); font-size: 14px; margin-bottom: 4px; }
 
   /* ── Scrollbar ───────────────────────────────────────────────── */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+  ::-webkit-scrollbar-thumb { background: var(--border-1); border-radius: 99px; }
 </style>
 </head>
 <body>
 
-<div class="app-container">
+<div class="shell">
 
-  <!-- ── Header ────────────────────────────────────────────────── -->
-  <header class="top-bar reveal">
-    <div class="brand-group">
-      <div class="brand-icon">🐤</div>
-      <div class="brand-title">
-        <h1>AuthCanary <span class="badge-version">v1.2</span></h1>
-        <p class="brand-subtitle">Host Authentication Triage & Baseline Monitor</p>
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-left">
+      <div class="hdr-mark">
+        <!-- Lucide: shield-check -->
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
       </div>
+      <h1>authcanary<span>v1.2</span></h1>
     </div>
-    <div class="system-meta">
-      <div class="meta-tag">
-        <span>Host</span>
-        <strong>{{ host_info.hostname }}</strong>
-      </div>
-      <div class="meta-tag">
-        <span>OS</span>
-        <strong>{{ host_info.platform }}</strong>
-      </div>
-      <div class="meta-tag">
-        <span>Scanned</span>
-        <strong>{{ generated_at }}</strong>
-      </div>
+    <div class="hdr-meta">
+      <span>{{ host_info.hostname }}</span>
+      <span>·</span>
+      <span>{{ host_info.platform }}</span>
+      <span>·</span>
+      <span>{{ generated_at }}</span>
     </div>
   </header>
 
-  <!-- ── Threat Status ─────────────────────────────────────────── -->
-  <section class="threat-banner threat-{{ threat_level }} reveal reveal-d1">
-    <div class="threat-left">
-      <div class="threat-indicator"></div>
-      <div class="threat-headline">
-        <h2>{{ threat_label }}</h2>
-        <p>
-          {% if anomaly_count > 0 %}
-            {{ anomaly_count }} event{% if anomaly_count > 1 %}s{% endif %} crossed the alert threshold (score ≥ {{ alert_threshold }}/100)
-          {% else %}
-            All authentication signals conform to learned baseline
-          {% endif %}
-        </p>
+  <!-- HERO — the one number that matters -->
+  <section class="hero">
+    <div class="hero-primary">
+      <div class="hero-label">anomalies detected</div>
+      <div class="hero-number {% if anomaly_count > 0 %}has-alerts{% endif %}" id="heroNum" data-target="{{ anomaly_count }}">
+        {{ anomaly_count }}
+      </div>
+      <div class="hero-context">
+        {% if anomaly_count > 0 %}
+          <strong>{{ anomaly_count }}</strong> event{% if anomaly_count > 1 %}s{% endif %} exceeded score threshold of <strong>{{ alert_threshold }}/100</strong> · peak score <strong>{{ max_score }}</strong>
+        {% else %}
+          All signals within learned baseline · threshold <strong>{{ alert_threshold }}/100</strong> · peak <strong>{{ max_score }}</strong>
+        {% endif %}
       </div>
     </div>
-    <div class="threat-score-pill">
-      <span class="label">Peak Score</span>
-      <span class="value" style="color: {% if max_score >= 60 %}var(--status-danger){% elif max_score >= 40 %}var(--status-warn){% else %}var(--status-ok){% endif %}">
-        {{ max_score }}/100
-      </span>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-label">
+          <!-- Lucide: activity -->
+          <svg class="i" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Events
+        </span>
+        <span class="hero-stat-val">{{ stats.total_events or all_events|length }}</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-label">
+          <!-- Lucide: users -->
+          <svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Accounts
+        </span>
+        <span class="hero-stat-val">{{ stats.unique_users or user_stats|length }}</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-label">
+          <!-- Lucide: globe -->
+          <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Source IPs
+        </span>
+        <span class="hero-stat-val">{{ stats.unique_ips or 1 }}</span>
+      </div>
     </div>
   </section>
 
-  <!-- ── Tabs ──────────────────────────────────────────────────── -->
-  <nav class="nav-tabs reveal reveal-d2" role="tablist">
-    <button class="tab-btn active" onclick="switchTab('overview')" id="tab-btn-overview">
+  <!-- STATUS STRIP -->
+  <div class="status-strip {% if anomaly_count > 0 %}s-danger{% elif not warmup_complete %}s-warn{% else %}s-ok{% endif %}">
+    <span class="dot"></span>
+    {% if anomaly_count > 0 %}
+      {{ anomaly_count }} anomal{% if anomaly_count > 1 %}ies{% else %}y{% endif %} above threshold
+    {% elif not warmup_complete %}
+      Baseline learning in progress
+    {% else %}
+      All systems nominal
+    {% endif %}
+    <span class="s-detail">score ≥ {{ alert_threshold }} · peak {{ max_score }}/100</span>
+  </div>
+
+  <!-- TABS -->
+  <nav class="tabs" role="tablist">
+    <button class="tab active" onclick="switchTab('overview')" id="t-overview">
       Overview
     </button>
-    <button class="tab-btn" onclick="switchTab('triage')" id="tab-btn-triage">
+    <button class="tab" onclick="switchTab('triage')" id="t-triage">
       Triage
-      <span class="tab-badge {% if anomaly_count > 0 %}badge-alert{% endif %}">{{ anomaly_count }}</span>
+      <span class="cnt {% if anomaly_count > 0 %}cnt-alert{% endif %}">{{ anomaly_count }}</span>
     </button>
-    <button class="tab-btn" onclick="switchTab('logs')" id="tab-btn-logs">
-      Log Stream
-      <span class="tab-badge">{{ all_events|length }}</span>
+    <button class="tab" onclick="switchTab('logs')" id="t-logs">
+      Logs
+      <span class="cnt">{{ all_events|length }}</span>
     </button>
-    <button class="tab-btn" onclick="switchTab('integrity')" id="tab-btn-integrity">
+    <button class="tab" onclick="switchTab('integrity')" id="t-integrity">
       Integrity
       {% if integrity_alerts > 0 %}
-        <span class="tab-badge badge-alert">{{ integrity_alerts }}</span>
+        <span class="cnt cnt-alert">{{ integrity_alerts }}</span>
       {% else %}
-        <span class="tab-badge">{{ integrity_results|length }}</span>
+        <span class="cnt">{{ integrity_results|length }}</span>
       {% endif %}
     </button>
   </nav>
 
-  <!-- ═══════ TAB 1: OVERVIEW ═══════ -->
-  <div id="pane-overview" class="tab-pane active">
+  <!-- ═══════ OVERVIEW ═══════ -->
+  <div id="p-overview" class="pane active">
 
-    <div class="kpi-grid">
-      <div class="kpi-card reveal reveal-d2">
-        <div class="kpi-header">
-          <span class="kpi-title">Total Events</span>
-          <span class="kpi-icon">📜</span>
-        </div>
-        <div class="kpi-value" data-count="{{ stats.total_events or all_events|length }}">0</div>
-        <div class="kpi-subtext">From system auth stream</div>
-      </div>
-
-      <div class="kpi-card reveal reveal-d3">
-        <div class="kpi-header">
-          <span class="kpi-title">Anomalies</span>
-          <span class="kpi-icon">⚠️</span>
-        </div>
-        <div class="kpi-value" data-count="{{ anomaly_count }}" style="-webkit-text-fill-color: {% if anomaly_count > 0 %}var(--status-danger){% else %}var(--status-ok){% endif %}; background: none;">
-          0
-        </div>
-        <div class="kpi-subtext">Threshold ≥ {{ alert_threshold }}</div>
-      </div>
-
-      <div class="kpi-card reveal reveal-d4">
-        <div class="kpi-header">
-          <span class="kpi-title">Accounts</span>
-          <span class="kpi-icon">👤</span>
-        </div>
-        <div class="kpi-value" data-count="{{ stats.unique_users or user_stats|length }}">0</div>
-        <div class="kpi-subtext">Monitored users</div>
-      </div>
-
-      <div class="kpi-card reveal reveal-d5">
-        <div class="kpi-header">
-          <span class="kpi-title">Endpoints</span>
-          <span class="kpi-icon">🌐</span>
-        </div>
-        <div class="kpi-value" data-count="{{ stats.unique_ips or 1 }}">0</div>
-        <div class="kpi-subtext">Source IPs observed</div>
-      </div>
-    </div>
-
-    <div class="analytics-row">
-      <div class="dashboard-panel reveal reveal-d4">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">24-Hour Activity Distribution</div>
-            <div class="panel-subtitle">Authentication events by hour</div>
-          </div>
+    <div class="grid-2">
+      <!-- HOURLY CHART -->
+      <div class="panel">
+        <div class="panel-title">
+          <!-- Lucide: bar-chart-3 -->
+          <svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+          24-hour distribution
         </div>
 
-        {% set max_hour_count = 1 %}
-        {% for count in hour_histogram %}
-          {% if count > max_hour_count %}{% set max_hour_count = count %}{% endif %}
-        {% endfor %}
+        {% set max_h = 1 %}
+        {% for c in hour_histogram %}{% if c > max_h %}{% set max_h = c %}{% endif %}{% endfor %}
+        {% set mean_h = (hour_histogram|sum) / 24 %}
 
         <div class="chart-bars">
-          {% for count in hour_histogram %}
+          {% for c in hour_histogram %}
             {% set h_idx = loop.index0 %}
-            {% set pct = (count / max_hour_count * 100)|round|int %}
+            {% set pct = (c / max_h * 100)|round|int %}
+            {% set is_hot = c > mean_h * 2.5 and c > 3 %}
+            {% set is_active = c > mean_h * 0.5 and c > 0 %}
             <div class="chart-col">
-              <div class="bar-tooltip">{{ count }} events at {{ '%02d'|format(h_idx) }}:00</div>
-              <div class="bar" style="height: {{ [pct, 3]|max }}%; animation: barGrow 0.6s ease forwards; animation-delay: {{ loop.index0 * 30 }}ms; opacity: 0; transform: scaleY(0);">
-              </div>
-              <span class="bar-label">{{ '%02d'|format(h_idx) }}</span>
+              <div class="bar-tip">{{ c }} event{{ 's' if c != 1 else '' }} · {{ '%02d'|format(h_idx) }}:00</div>
+              <div class="bar {% if is_hot %}bar-hot{% elif is_active %}bar-active{% else %}bar-normal{% endif %}" style="height: {{ [pct, 2]|max }}%;"></div>
+              {% if h_idx % 3 == 0 %}
+                <span class="bar-lbl">{{ '%02d'|format(h_idx) }}</span>
+              {% else %}
+                <span class="bar-lbl" style="visibility:hidden;">.</span>
+              {% endif %}
             </div>
           {% endfor %}
         </div>
       </div>
 
-      <div class="dashboard-panel reveal reveal-d5">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">Baseline Engine</div>
-            <div class="panel-subtitle">Learning status</div>
-          </div>
+      <!-- BASELINE SIDEBAR -->
+      <div class="panel">
+        <div class="panel-title">
+          <!-- Lucide: radar -->
+          <svg class="i" viewBox="0 0 24 24"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/></svg>
+          Baseline engine
         </div>
-
-        <div class="warmup-box">
-          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600;">
-            <span>Warm-up</span>
-            <span style="color: {% if warmup_complete %}var(--status-ok){% else %}var(--status-warn){% endif %};">
-              {% if warmup_complete %}Active{% else %}Learning{% endif %}
-            </span>
-          </div>
-          <div class="warmup-progress-bar">
-            <div class="warmup-fill" style="width: {% if warmup_complete %}100%{% else %}45%{% endif %};"></div>
-          </div>
-          <p class="warmup-desc">{{ warmup_message }}</p>
+        <div class="baseline-item">
+          <span class="baseline-label">Status</span>
+          <span class="baseline-val" style="color: {% if warmup_complete %}var(--ok){% else %}var(--warn){% endif %}">
+            {% if warmup_complete %}Active{% else %}Learning{% endif %}
+          </span>
         </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width: {% if warmup_complete %}100{% else %}45{% endif %}%;"></div>
+        </div>
+        <div style="font-size: 11px; color: var(--t3); margin-bottom: 14px;">{{ warmup_message }}</div>
 
-        <div style="margin-top: 16px; font-size: 12px; color: var(--text-secondary);">
-          <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
-            <span>Sensitivity</span>
-            <strong style="color: var(--text-primary);">≥ {{ alert_threshold }}/100</strong>
-          </div>
-          <div style="display:flex; justify-content:space-between;">
-            <span>Enrichment</span>
-            <strong style="color: var(--text-primary);">ip-api.com</strong>
-          </div>
+        <div class="baseline-item">
+          <span class="baseline-label">Alert threshold</span>
+          <span class="baseline-val">{{ alert_threshold }}/100</span>
+        </div>
+        <div class="baseline-item">
+          <span class="baseline-label">Enrichment</span>
+          <span class="baseline-val">ip-api.com</span>
+        </div>
+        <div class="baseline-item">
+          <span class="baseline-label">Peak score</span>
+          <span class="baseline-val">{{ max_score }}/100</span>
         </div>
       </div>
     </div>
 
-    <div class="dashboard-panel reveal reveal-d6">
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">Monitored Accounts</div>
-          <div class="panel-subtitle">Per-user summary</div>
-        </div>
+    <!-- USERS TABLE -->
+    <div class="panel">
+      <div class="panel-title">
+        <!-- Lucide: user-check -->
+        <svg class="i" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+        Monitored accounts
       </div>
-      <table class="user-table">
+      <table class="tbl">
         <thead>
           <tr>
             <th>Account</th>
             <th>Events</th>
-            <th>Peak Score</th>
+            <th>Peak</th>
             <th>Anomalies</th>
             <th>Status</th>
           </tr>
@@ -1316,23 +986,23 @@
           {% for username, udata in user_stats.items() %}
           <tr>
             <td>
-              <span class="user-badge">
-                <span class="user-avatar">{{ username[0]|upper }}</span>
-                {{ username }}
+              <div class="user-cell">
+                <div class="user-av">{{ username[0]|upper }}</div>
+                <span class="mono" style="font-weight: 500;">{{ username }}</span>
+              </div>
+            </td>
+            <td class="mono" style="color: var(--t2);">{{ udata.count }}</td>
+            <td>
+              <span class="score-chip {% if udata.max_score >= 60 %}sc-danger{% elif udata.max_score >= 40 %}sc-warn{% else %}sc-neutral{% endif %}">
+                {{ udata.max_score }}
               </span>
             </td>
-            <td>{{ udata.count }}</td>
-            <td>
-              <strong style="color: {% if udata.max_score >= 60 %}var(--status-danger){% elif udata.max_score >= 40 %}var(--status-warn){% else %}var(--status-ok){% endif %}; font-family: var(--font-mono);">
-                {{ udata.max_score }}/100
-              </strong>
-            </td>
-            <td>{{ udata.anomalies }}</td>
+            <td class="mono" style="color: var(--t2);">{{ udata.anomalies }}</td>
             <td>
               {% if udata.anomalies > 0 %}
-                <span class="triage-badge badge-critical">Attention</span>
+                <span class="score-chip sc-danger">attention</span>
               {% else %}
-                <span class="triage-badge badge-nominal">Normal</span>
+                <span class="score-chip sc-ok">ok</span>
               {% endif %}
             </td>
           </tr>
@@ -1343,155 +1013,123 @@
 
   </div>
 
-
-  <!-- ═══════ TAB 2: TRIAGE ═══════ -->
-  <div id="pane-triage" class="tab-pane">
+  <!-- ═══════ TRIAGE ═══════ -->
+  <div id="p-triage" class="pane">
     {% if scored_events|length == 0 %}
-      <div class="dashboard-panel empty-state">
-        <div class="empty-state-icon">✓</div>
-        <h3>All Clear</h3>
-        <p>No events exceeded the alert threshold ({{ alert_threshold }}/100).</p>
-        <div style="margin-top: 16px;">
-          <button class="chip active" onclick="switchTab('logs')">View Log Stream ({{ all_events|length }})</button>
-        </div>
+      <div class="panel empty">
+        <h3>No anomalies</h3>
+        <p>All events below threshold ({{ alert_threshold }}/100)</p>
       </div>
     {% else %}
-      <div class="triage-deck">
+      <div class="triage-list">
         {% for se in scored_events %}
-          <div class="triage-card {% if se.score >= 60 %}critical{% elif se.score >= 40 %}elevated{% else %}moderate{% endif %}">
-            <div class="triage-top">
-              <div class="triage-identity">
-                <span class="triage-badge {% if se.score >= 60 %}badge-critical{% else %}badge-elevated{% endif %}">
-                  {% if se.score >= 60 %}Critical{% else %}Elevated{% endif %}
+          <div class="t-card {% if se.score >= 60 %}t-crit{% elif se.score >= 40 %}t-warn{% endif %}">
+            <div class="t-head">
+              <div class="t-who">
+                <span class="score-chip {% if se.score >= 60 %}sc-danger{% else %}sc-warn{% endif %}" style="font-size: 10px;">
+                  {% if se.score >= 60 %}critical{% else %}elevated{% endif %}
                 </span>
-                <span class="triage-user">{{ se.event.username }}</span>
-                <span class="triage-timestamp">{{ se.event.timestamp }}</span>
+                <span class="t-user">{{ se.event.username }}</span>
+                <span class="t-time">{{ se.event.timestamp }}</span>
               </div>
-              <div class="score-dial">
-                <span class="score-dial-val" style="color: {% if se.score >= 60 %}var(--status-danger){% else %}var(--status-warn){% endif %};">{{ se.score }}</span>
-                <span class="score-dial-max">/100</span>
+              <div class="t-score" style="color: {% if se.score >= 60 %}var(--alarm){% else %}var(--warn){% endif %};">
+                {{ se.score }}<sub>/100</sub>
               </div>
             </div>
-            <ul class="triage-reasons">
+            <ul class="t-reasons">
               {% for r in se.reasons %}
-                <li class="triage-reason-item">
-                  <span class="reason-bullet">▸</span>
-                  <span>{{ r }}</span>
-                </li>
+                <li class="t-reason"><span class="t-reason-marker">›</span> {{ r }}</li>
               {% endfor %}
             </ul>
-            <div class="triage-meta-row">
-              <span class="meta-pill">{{ se.event.event_type }}</span>
-              {% if se.event.source_ip %}
-                <span class="meta-pill">IP: {{ se.event.source_ip }}</span>
-              {% endif %}
+            <div class="t-footer">
+              <span class="t-pill">{{ se.event.event_type }}</span>
+              {% if se.event.source_ip %}<span class="t-pill">{{ se.event.source_ip }}</span>{% endif %}
               {% if se.enrichment and se.enrichment.enriched %}
-                <span class="meta-pill">ASN: {{ se.enrichment.asn }} ({{ se.enrichment.org }})</span>
-                {% if se.enrichment.city != "unknown" %}
-                  <span class="meta-pill">{{ se.enrichment.city }}, {{ se.enrichment.country }}</span>
-                {% endif %}
-              {% endif %}
-              <button class="btn-copy" onclick="copyAlertText('{{ se.event.username }}', '{{ se.score }}', '{{ se.event.timestamp }}')">Copy Summary</button>
-            </div>
-            <div class="action-callout">
-              <strong>Response Guidance:</strong>
-              {% if se.playbook %}
-                <pre style="margin-top: 4px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: var(--text-secondary); line-height: 1.5;">{{ se.playbook }}</pre>
-              {% elif "SSH key" in se.reasons|join(" ") %}
-                <p style="margin-top: 4px;">Verify authorized_keys changes. Revoke untrusted public keys.</p>
-              {% elif "sudo" in se.reasons|join(" ") %}
-                <p style="margin-top: 4px;">Review /etc/sudoers for '{{ se.event.username }}' — confirm no unauthorized escalation.</p>
-              {% elif "brute-force" in se.reasons|join(" ") %}
-                <p style="margin-top: 4px;">Block source IP {{ se.event.source_ip }} via firewall.</p>
-              {% else %}
-                <p style="margin-top: 4px;">Contact '{{ se.event.username }}' to confirm this activity.</p>
+                <span class="t-pill">{{ se.enrichment.asn }}</span>
+                {% if se.enrichment.city != "unknown" %}<span class="t-pill">{{ se.enrichment.city }}, {{ se.enrichment.country }}</span>{% endif %}
               {% endif %}
             </div>
+            {% if se.playbook %}
+              <div class="t-playbook">
+                <strong>Response guidance</strong>
+                <pre style="margin-top: 4px; font-family: var(--mono); font-size: 11px; white-space: pre-wrap; line-height: 1.5;">{{ se.playbook }}</pre>
+              </div>
+            {% endif %}
           </div>
         {% endfor %}
       </div>
     {% endif %}
   </div>
 
-
-  <!-- ═══════ TAB 3: LOG STREAM ═══════ -->
-  <div id="pane-logs" class="tab-pane">
-    <div class="log-stream-controls">
-      <div class="search-input-wrapper">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="logSearchInput" class="search-input" placeholder="Filter by username, IP, event type..." onkeyup="filterLogs()">
+  <!-- ═══════ LOGS ═══════ -->
+  <div id="p-logs" class="pane">
+    <div class="log-controls">
+      <div class="search-box">
+        <svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" id="logSearch" placeholder="filter logs..." onkeyup="filterLogs()">
       </div>
-      <div class="filter-chips">
-        <button class="chip active" onclick="setCategoryFilter('all', this)">All ({{ all_events|length }})</button>
-        <button class="chip" onclick="setCategoryFilter('anomalies', this)">Anomalies ({{ anomaly_count }})</button>
-        <button class="chip" onclick="setCategoryFilter('login', this)">Logins</button>
-        <button class="chip" onclick="setCategoryFilter('sudo', this)">Sudo</button>
-        <button class="chip" onclick="setCategoryFilter('ssh', this)">SSH / Auth</button>
+      <div class="pills">
+        <button class="pill on" onclick="setFilter('all',this)">all {{ all_events|length }}</button>
+        <button class="pill" onclick="setFilter('anomalies',this)">anomalies {{ anomaly_count }}</button>
+        <button class="pill" onclick="setFilter('login',this)">logins</button>
+        <button class="pill" onclick="setFilter('sudo',this)">sudo</button>
+        <button class="pill" onclick="setFilter('ssh',this)">ssh/keys</button>
       </div>
     </div>
 
-    <div class="log-table-container">
-      <table class="log-table" id="systemLogTable">
+    <div class="log-wrap">
+      <table class="tbl" id="logTbl">
         <thead>
           <tr>
-            <th>Timestamp</th>
+            <th>Time</th>
             <th>Account</th>
             <th>Event</th>
             <th>Source</th>
             <th>Score</th>
-            <th>Details</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {% for se in all_events %}
-          <tr class="log-row"
-              data-user="{{ se.event.username|lower }}"
-              data-ip="{{ (se.event.source_ip or '')|lower }}"
-              data-type="{{ se.event.event_type|lower }}"
-              data-score="{{ se.score }}"
-              data-raw="{{ se.event.raw_line|lower }}">
-            <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); white-space: nowrap;">{{ se.event.timestamp }}</td>
-            <td><span class="user-badge">{{ se.event.username }}</span></td>
+          <tr class="log-row" data-user="{{ se.event.username|lower }}" data-ip="{{ (se.event.source_ip or '')|lower }}" data-type="{{ se.event.event_type|lower }}" data-score="{{ se.score }}" data-raw="{{ se.event.raw_line|lower }}">
+            <td class="mono" style="font-size: 11px; color: var(--t3); white-space: nowrap;">{{ se.event.timestamp }}</td>
+            <td class="mono" style="font-weight: 500;">{{ se.event.username }}</td>
             <td>
               {% if "sudo" in se.event.event_type %}
-                <span class="triage-badge badge-elevated">Sudo</span>
+                <span class="score-chip sc-warn">sudo</span>
               {% elif "fail" in se.event.event_type %}
-                <span class="triage-badge badge-critical">Failed</span>
+                <span class="score-chip sc-danger">failed</span>
               {% elif "key" in se.event.event_type %}
-                <span class="triage-badge" style="background: rgba(124,107,240,0.10); color: var(--accent); border: 1px solid var(--accent-border);">Key</span>
+                <span class="score-chip" style="background: rgba(140,120,200,0.12); color: #9580c0;">key</span>
               {% else %}
-                <span class="triage-badge badge-nominal">Login</span>
+                <span class="score-chip sc-ok">login</span>
               {% endif %}
             </td>
-            <td style="font-family: var(--font-mono); font-size: 12px;">
+            <td class="mono" style="font-size: 11px; color: var(--t2);">
               {{ se.event.source_ip or 'local' }}
               {% if se.enrichment and se.enrichment.asn not in ['unknown', 'private'] %}
-                <span style="color: var(--text-muted); font-size: 11px;">({{ se.enrichment.asn }})</span>
+                <span style="color: var(--t4);">({{ se.enrichment.asn }})</span>
               {% endif %}
             </td>
             <td>
-              <span class="triage-badge {% if se.score >= 40 %}badge-critical{% else %}badge-nominal{% endif %}">{{ se.score }}</span>
+              <span class="score-chip {% if se.score >= 40 %}sc-danger{% else %}sc-neutral{% endif %}">{{ se.score }}</span>
             </td>
-            <td>
-              <button class="expand-btn" onclick="toggleRawLine({{ loop.index0 }})">Inspect</button>
-            </td>
+            <td><button class="btn-sm" onclick="toggleDraw({{ loop.index0 }})">inspect</button></td>
           </tr>
-          <tr id="raw-drawer-{{ loop.index0 }}" class="log-raw-drawer">
+          <tr id="draw-{{ loop.index0 }}" class="log-drawer">
             <td colspan="6">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong style="color: var(--text-primary);">Raw Log Entry</strong>
-                <button class="expand-btn" onclick="copyRawLine(`{{ se.event.raw_line }}`)">Copy</button>
+              <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+                <strong style="color: var(--t1);">raw log</strong>
+                <button class="btn-sm" onclick="navigator.clipboard.writeText(`{{ se.event.raw_line }}`)">copy</button>
               </div>
-              <div class="log-raw-content">{{ se.event.raw_line or '[Unified log event]' }}</div>
+              <div class="log-raw-block">{{ se.event.raw_line or '[unified log event]' }}</div>
               {% if se.reasons|length > 0 %}
-                <div style="margin-top: 6px; color: var(--status-danger); font-size: 12px;">
-                  <strong>Flags:</strong> {{ se.reasons|join("; ") }}
-                </div>
+                <div style="margin-top: 6px; color: var(--alarm); font-size: 11px;">flags: {{ se.reasons|join("; ") }}</div>
               {% endif %}
               {% if se.playbook %}
-                <div style="margin-top: 8px; padding: 10px 12px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);">
-                  <strong style="color: var(--accent); font-size: 11px;">Response Guidance:</strong>
-                  <pre style="margin-top: 4px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: var(--text-secondary); line-height: 1.5;">{{ se.playbook }}</pre>
+                <div class="t-playbook" style="margin-top: 8px;">
+                  <strong>Response guidance</strong>
+                  <pre style="margin-top: 4px; font-family: var(--mono); font-size: 10px; white-space: pre-wrap; line-height: 1.5;">{{ se.playbook }}</pre>
                 </div>
               {% endif %}
             </td>
@@ -1502,69 +1140,53 @@
     </div>
   </div>
 
-  <!-- ═══════ TAB 4: INTEGRITY ═══════ -->
-  <div id="pane-integrity" class="tab-pane">
-    <div class="dashboard-panel" style="margin-bottom: 14px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+  <!-- ═══════ INTEGRITY ═══════ -->
+  <div id="p-integrity" class="pane">
+    <div class="panel" style="margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
         <div>
-          <h3 style="font-size: 15px; font-weight: 600;">File Integrity Monitor</h3>
-          <p style="color: var(--text-muted); font-size: 13px; margin-top: 3px;">SHA-256 baseline for sshd_config, authorized_keys, sudoers</p>
+          <div class="panel-title" style="margin-bottom: 4px;">
+            <svg class="i" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            File integrity
+          </div>
+          <div style="font-size: 12px; color: var(--t3);">SHA-256 baselines for sshd_config, authorized_keys, sudoers</div>
         </div>
-        <div>
-          {% if integrity_alerts > 0 %}
-            <span class="triage-badge badge-critical" style="font-size: 12px; padding: 5px 12px;">{{ integrity_alerts }} Drift Alert(s)</span>
-          {% else %}
-            <span class="triage-badge badge-nominal" style="font-size: 12px; padding: 5px 12px;">Clean Baseline</span>
-          {% endif %}
-        </div>
+        {% if integrity_alerts > 0 %}
+          <span class="score-chip sc-danger">{{ integrity_alerts }} drift</span>
+        {% else %}
+          <span class="score-chip sc-ok">clean</span>
+        {% endif %}
       </div>
     </div>
 
     {% if integrity_results|length == 0 %}
-      <div class="dashboard-panel empty-state">
-        <div class="empty-state-icon">🛡️</div>
-        <h3>No Monitored Targets</h3>
-        <p>File integrity monitoring is disabled or no targets configured.</p>
+      <div class="panel empty">
+        <h3>No targets</h3>
+        <p>FIM disabled or no targets configured</p>
       </div>
     {% else %}
-      <div class="log-table-container">
-        <table class="log-table">
-          <thead>
-            <tr>
-              <th style="width: 130px;">Status</th>
-              <th>Target</th>
-              <th style="width: 140px;">SHA-256</th>
-              <th>Details</th>
-            </tr>
-          </thead>
+      <div class="log-wrap">
+        <table class="tbl">
+          <thead><tr><th>Status</th><th>Target</th><th>SHA-256</th><th>Details</th></tr></thead>
           <tbody>
             {% for ir in integrity_results %}
               <tr>
                 <td>
-                  {% if ir.status == 'OK' %}
-                    <span class="triage-badge badge-nominal">Clean</span>
-                  {% elif ir.status == 'MODIFIED' %}
-                    <span class="triage-badge badge-critical">Modified</span>
-                  {% elif ir.status == 'CREATED' %}
-                    <span class="triage-badge badge-elevated">Created</span>
-                  {% elif ir.status == 'DELETED' %}
-                    <span class="triage-badge badge-critical">Deleted</span>
-                  {% elif ir.status == 'PERMISSION_DENIED' %}
-                    <span class="triage-badge badge-elevated">Root Required</span>
-                  {% else %}
-                    <span class="triage-badge">{{ ir.status }}</span>
-                  {% endif %}
+                  {% if ir.status == 'OK' %}<span class="score-chip sc-ok">clean</span>
+                  {% elif ir.status == 'MODIFIED' %}<span class="score-chip sc-danger">modified</span>
+                  {% elif ir.status == 'CREATED' %}<span class="score-chip sc-warn">created</span>
+                  {% elif ir.status == 'DELETED' %}<span class="score-chip sc-danger">deleted</span>
+                  {% elif ir.status == 'PERMISSION_DENIED' %}<span class="score-chip sc-warn">root required</span>
+                  {% else %}<span class="score-chip sc-neutral">{{ ir.status }}</span>{% endif %}
                 </td>
-                <td style="font-family: var(--font-mono); font-weight: 500; font-size: 12px;">{{ ir.filepath }}</td>
-                <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
-                  {{ ir.sha256[:12] }}{% if ir.sha256 %}…{% else %}—{% endif %}
-                </td>
-                <td style="font-size: 12px;">
-                  <div>{{ ir.message }}</div>
+                <td class="mono" style="font-size: 11px; font-weight: 500;">{{ ir.filepath }}</td>
+                <td class="mono" style="font-size: 10px; color: var(--t4);">{{ ir.sha256[:12] }}{% if ir.sha256 %}…{% else %}—{% endif %}</td>
+                <td style="font-size: 12px; color: var(--t2);">
+                  {{ ir.message }}
                   {% if ir.playbook %}
-                    <div style="margin-top: 6px; padding: 8px 10px; background: var(--status-danger-soft); border-left: 2px solid var(--status-danger); border-radius: 4px;">
-                      <strong style="color: var(--status-danger); font-size: 11px;">Containment:</strong>
-                      <pre style="margin-top: 3px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: var(--text-primary); line-height: 1.4;">{{ ir.playbook }}</pre>
+                    <div class="t-playbook" style="margin-top: 6px;">
+                      <strong>Containment</strong>
+                      <pre style="margin-top: 3px; font-family: var(--mono); font-size: 10px; white-space: pre-wrap; line-height: 1.4;">{{ ir.playbook }}</pre>
                     </div>
                   {% endif %}
                 </td>
@@ -1576,92 +1198,41 @@
     {% endif %}
   </div>
 
-  <footer class="page-footer">AuthCanary — Autonomous Host Authentication Triage</footer>
-
 </div>
 
-<style>
-  /* Bar grow animation for chart */
-  @keyframes barGrow {
-    from { opacity: 0; transform: scaleY(0); }
-    to { opacity: 0.5; transform: scaleY(1); }
-  }
-</style>
-
 <script>
-  // ── Tab Switching ──────────────────────────────────────────────
-  function switchTab(tabId) {
-    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById('pane-' + tabId).classList.add('active');
-    document.getElementById('tab-btn-' + tabId).classList.add('active');
-  }
+function switchTab(id) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('p-' + id).classList.add('active');
+  document.getElementById('t-' + id).classList.add('active');
+}
 
-  // ── Animated Count-Up for KPI Values ───────────────────────────
-  function animateCounters() {
-    document.querySelectorAll('.kpi-value[data-count]').forEach(el => {
-      const target = parseInt(el.dataset.count, 10);
-      if (isNaN(target) || target === 0) { el.textContent = '0'; return; }
-      const duration = 800;
-      const start = performance.now();
-      function tick(now) {
-        const progress = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-        el.textContent = Math.round(eased * target);
-        if (progress < 1) requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    });
-  }
+function toggleDraw(i) {
+  document.getElementById('draw-' + i).classList.toggle('open');
+}
 
-  // Run counters after page load
-  window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(animateCounters, 300);
+let curCat = 'all';
+function setFilter(cat, btn) {
+  curCat = cat;
+  document.querySelectorAll('.pills .pill').forEach(p => p.classList.remove('on'));
+  btn.classList.add('on');
+  filterLogs();
+}
+
+function filterLogs() {
+  const q = document.getElementById('logSearch').value.toLowerCase();
+  document.querySelectorAll('#logTbl tbody .log-row').forEach(row => {
+    const u = row.dataset.user || '', ip = row.dataset.ip || '', t = row.dataset.type || '', s = parseInt(row.dataset.score || '0'), r = row.dataset.raw || '';
+    const text = u.includes(q) || ip.includes(q) || t.includes(q) || r.includes(q) || s.toString().includes(q);
+    let cat = true;
+    if (curCat === 'anomalies') cat = s >= {{ alert_threshold }};
+    else if (curCat === 'login') cat = t.includes('login');
+    else if (curCat === 'sudo') cat = t.includes('sudo');
+    else if (curCat === 'ssh') cat = t.includes('ssh') || t.includes('key');
+    row.style.display = (text && cat) ? '' : 'none';
   });
-
-  // ── Raw Log Drawer ─────────────────────────────────────────────
-  function toggleRawLine(index) {
-    document.getElementById('raw-drawer-' + index).classList.toggle('open');
-  }
-
-  function copyRawLine(text) {
-    navigator.clipboard.writeText(text).then(() => alert('Copied.'));
-  }
-
-  function copyAlertText(user, score, ts) {
-    navigator.clipboard.writeText(`[AuthCanary] User: ${user} | Score: ${score}/100 | Time: ${ts}`).then(() => alert('Copied.'));
-  }
-
-  // ── Log Filtering ──────────────────────────────────────────────
-  let currentCategory = 'all';
-
-  function setCategoryFilter(cat, btn) {
-    currentCategory = cat;
-    document.querySelectorAll('.filter-chips .chip').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
-    filterLogs();
-  }
-
-  function filterLogs() {
-    const query = document.getElementById('logSearchInput').value.toLowerCase();
-    document.querySelectorAll('#systemLogTable tbody .log-row').forEach(row => {
-      const user = row.dataset.user || '';
-      const ip = row.dataset.ip || '';
-      const type = row.dataset.type || '';
-      const score = parseInt(row.dataset.score || '0', 10);
-      const raw = row.dataset.raw || '';
-
-      const matchesText = user.includes(query) || ip.includes(query) || type.includes(query) || raw.includes(query) || score.toString().includes(query);
-      let matchesCat = true;
-      if (currentCategory === 'anomalies') matchesCat = score >= {{ alert_threshold }};
-      else if (currentCategory === 'login') matchesCat = type.includes('login');
-      else if (currentCategory === 'sudo') matchesCat = type.includes('sudo');
-      else if (currentCategory === 'ssh') matchesCat = type.includes('ssh') || type.includes('key');
-
-      row.style.display = (matchesText && matchesCat) ? '' : 'none';
-    });
-  }
+}
 </script>
-
 </body>
 </html>
