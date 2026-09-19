@@ -181,6 +181,20 @@ def generate_report(
         "ssh": ssh_count,
     }
 
+    flagged_hours = {}
+    for obj in template_all_events:
+        if obj.score > 0:
+            try:
+                h = datetime.fromisoformat(obj.event.timestamp).hour
+                if h not in flagged_hours or obj.score > flagged_hours[h]["score"]:
+                    flagged_hours[h] = {
+                        "score": obj.score,
+                        "reason": obj.reasons[0] if obj.reasons else "Deviation signal",
+                        "username": obj.event.username,
+                    }
+            except Exception:
+                pass
+
     if max_score >= 60:
         threat_level = "CRITICAL"
         threat_label = "Critical Threat Detected"
@@ -209,6 +223,7 @@ def generate_report(
         event_type_counts=event_type_counts,
         filter_counts=_Obj(filter_counts),
         hour_histogram=hour_histogram,
+        flagged_hours={k: _Obj(v) for k, v in flagged_hours.items()},
         scored_events=template_alert_events,       # Alert events for "What's Important"
         flagged_events=template_flagged_events,     # Sub-threshold scored events
         all_events=template_all_events,            # Full list for "Systematic Log Stream"

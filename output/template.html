@@ -58,7 +58,7 @@
   .shell {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 36px 32px 80px;
+    padding: 24px 32px 60px;
   }
 
   /* ── INLINE SVG ICON BASE ────────────────────────────────────── */
@@ -77,9 +77,9 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 20px;
+    padding-bottom: 14px;
     border-bottom: 1px solid var(--border-0);
-    margin-bottom: 32px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
     gap: 12px;
   }
@@ -87,14 +87,14 @@
   .hdr-left { display: flex; align-items: center; gap: 12px; }
 
   .hdr-mark {
-    width: 32px; height: 32px;
+    width: 30px; height: 30px;
     border-radius: 8px;
     background: var(--bg-3);
     border: 1px solid var(--border-1);
     display: grid; place-items: center;
   }
 
-  .hdr-mark svg { width: 16px; height: 16px; stroke: var(--t2); fill: none; stroke-width: 1.5; }
+  .hdr-mark svg { width: 15px; height: 15px; stroke: var(--t2); fill: none; stroke-width: 1.5; }
 
   .hdr h1 {
     font-family: var(--mono);
@@ -106,57 +106,150 @@
   .hdr h1 span { font-weight: 400; color: var(--t3); margin-left: 6px; }
 
   .hdr-meta {
-    display: flex; gap: 16px;
+    display: flex; gap: 14px;
     font-family: var(--mono);
     font-size: 11px;
     color: var(--t3);
   }
 
-  .hdr-meta strong { color: var(--t2); font-weight: 500; }
+  .hdr-bar {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--t3);
+    padding: 7px 12px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-0);
+    border-radius: var(--r-sm);
+    margin-bottom: 18px;
+  }
+  .hdr-tag { display: flex; align-items: center; gap: 6px; }
+  .dot-live {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+  }
 
-  /* ── HERO — single focal point ───────────────────────────────── */
+  /* ── HERO with Radial Arc Gauge ──────────────────────────────── */
   .hero {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 32px;
-    align-items: end;
-    margin-bottom: 36px;
-    padding: 40px 0 36px;
+    gap: 28px;
+    align-items: center;
+    margin-bottom: 22px;
+    padding: 16px 0 22px;
     border-bottom: 1px solid var(--border-0);
   }
 
-  @media (max-width: 700px) { .hero { grid-template-columns: 1fr; gap: 20px; } }
+  @media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 20px; } }
 
-  .hero-primary { display: flex; flex-direction: column; gap: 8px; }
+  .hero-left {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
 
-  .hero-label {
+  @media (max-width: 600px) { .hero-left { flex-direction: column; align-items: flex-start; gap: 16px; } }
+
+  .gauge-container {
+    position: relative;
+    width: 106px;
+    height: 106px;
+    flex-shrink: 0;
+  }
+
+  .gauge-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .gauge-track {
+    fill: none;
+    stroke: var(--bg-3);
+    stroke-width: 8;
+  }
+
+  .gauge-val {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .gv-alarm { stroke: var(--alarm); filter: drop-shadow(0 0 8px rgba(229, 77, 77, 0.45)); }
+  .gv-warn { stroke: var(--warn); filter: drop-shadow(0 0 8px rgba(229, 169, 59, 0.4)); }
+  .gv-notice { stroke: #e5a93b; filter: drop-shadow(0 0 6px rgba(229, 169, 59, 0.3)); }
+  .gv-nominal { stroke: var(--t4); }
+
+  .gauge-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .gauge-score {
     font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--t1);
+    letter-spacing: -0.03em;
+  }
+
+  .gauge-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--t4);
+    margin-top: 2px;
+  }
+
+  .hero-meta-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hero-subheading {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--t3);
   }
 
-  .hero-number {
-    font-family: var(--mono);
-    font-weight: 800;
-    font-size: 112px;
-    line-height: 0.85;
-    letter-spacing: -0.05em;
+  .hero-headline {
+    font-family: var(--sans);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
     color: var(--t1);
-    /* When nominal — big white numeral, unmistakable */
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
-  .hero-number.has-alerts {
-    color: var(--alarm);
-    text-shadow: 0 0 80px rgba(229, 77, 77, 0.25), 0 0 160px rgba(229, 77, 77, 0.08);
+  .hero-anom-count {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 800;
+    color: {% if anomaly_count > 0 %}var(--alarm){% else %}var(--t1){% endif %};
   }
 
   .hero-context {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--t3);
-    margin-top: 6px;
+    max-width: 520px;
+    line-height: 1.5;
   }
   .hero-context strong { color: var(--t2); font-weight: 500; }
 
@@ -258,6 +351,12 @@
 
   .tab.active .cnt { background: var(--bg-4); color: var(--t2); }
   .cnt.cnt-alert { background: var(--alarm); color: #fff; }
+  .cnt.cnt-warn {
+    background: rgba(229, 169, 59, 0.18);
+    color: var(--warn);
+    border: 1px solid rgba(229, 169, 59, 0.4);
+    box-shadow: 0 0 8px rgba(229, 169, 59, 0.15);
+  }
 
   /* ── PANES ───────────────────────────────────────────────────── */
   .pane { display: none; }
@@ -358,9 +457,27 @@
     line-height: 1;
   }
 
+  .bar-callout {
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: rgba(229, 77, 77, 0.18);
+    color: var(--alarm);
+    border: 1px solid rgba(229, 77, 77, 0.4);
+    padding: 1px 4px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 5;
+  }
+
   .bar-tip {
     position: absolute;
-    bottom: calc(100% + 4px);
+    bottom: calc(100% + 20px);
     left: 50%;
     transform: translateX(-50%) translateY(4px);
     background: var(--bg-4);
@@ -369,13 +486,14 @@
     font-family: var(--mono);
     font-size: 11px;
     font-weight: 500;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 6px 10px;
+    border-radius: 6px;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.12s, transform 0.12s;
-    z-index: 10;
+    z-index: 30;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
   }
 
   .chart-col:hover .bar-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -673,17 +791,47 @@
     </div>
   </header>
 
-  <!-- HERO -->
+  <!-- SECONDARY STATUS STRIP -->
+  <div class="hdr-bar">
+    <span class="hdr-tag"><span class="dot-live"></span> Engine: Active Continuous</span>
+    <span class="hdr-tag">Log Source: Host {{ host_info.platform }} Unified Log</span>
+    <span class="hdr-tag">Baseline: SQLite Persistent</span>
+    <span class="hdr-tag" style="margin-left:auto;">Last Scan: {{ generated_at }}</span>
+  </div>
+
+  <!-- HERO (Unified Radial Gauge + Anomaly Status) -->
   <section class="hero">
-    <div class="hero-primary">
-      <div class="hero-label">anomalies detected</div>
-      <div class="hero-number {% if anomaly_count > 0 %}has-alerts{% endif %}">{{ anomaly_count }}</div>
-      <div class="hero-context">
-        {% if anomaly_count > 0 %}
-          <strong>{{ anomaly_count }}</strong> event{% if anomaly_count > 1 %}s{% endif %} exceeded score threshold of <strong>{{ alert_threshold }}/100</strong> · peak score <strong>{{ max_score }}</strong>
-        {% else %}
-          All signals within learned baseline · threshold <strong>{{ alert_threshold }}/100</strong> · peak <strong>{{ max_score }}</strong>
-        {% endif %}
+    <div class="hero-left">
+      <div class="gauge-container">
+        <svg class="gauge-svg" viewBox="0 0 120 120">
+          <circle class="gauge-track" cx="60" cy="60" r="50" />
+          <circle class="gauge-val {% if max_score >= 60 %}gv-alarm{% elif max_score >= 40 %}gv-warn{% elif max_score > 0 %}gv-notice{% else %}gv-nominal{% endif %}"
+                  cx="60" cy="60" r="50"
+                  style="stroke-dasharray: 314.16; stroke-dashoffset: {{ (314.16 * (1 - (max_score / 100)))|round(1) }};" />
+        </svg>
+        <div class="gauge-inner">
+          <span class="gauge-score">{{ max_score }}</span>
+          <span class="gauge-sub">/100</span>
+        </div>
+      </div>
+      <div class="hero-meta-col">
+        <div class="hero-subheading">peak threat score · {{ max_score }}/100</div>
+        <div class="hero-headline">
+          <span class="hero-anom-count">{{ anomaly_count }}</span>
+          <span>anomal{% if anomaly_count == 1 %}y{% else %}ies{% endif %} detected</span>
+          {% if anomaly_count == 0 %}
+            <span class="sc sc-ok" style="font-size:10px;padding:2px 6px;">nominal</span>
+          {% else %}
+            <span class="sc sc-danger" style="font-size:10px;padding:2px 6px;">alert active</span>
+          {% endif %}
+        </div>
+        <div class="hero-context">
+          {% if anomaly_count > 0 %}
+            <strong>{{ anomaly_count }}</strong> event{% if anomaly_count > 1 %}s{% endif %} breached alert threshold of <strong>{{ alert_threshold }}/100</strong>. Actionable triage runbooks generated below.
+          {% else %}
+            All monitored activity within baseline profile · alert threshold <strong>{{ alert_threshold }}/100</strong>
+          {% endif %}
+        </div>
       </div>
     </div>
     <div class="hero-stats">
@@ -711,17 +859,17 @@
     </div>
   </section>
 
-  <!-- STATUS STRIP -->
+  <!-- STATUS STRIP (Deduplicated — no repeated peak score) -->
   <div class="status-strip {% if anomaly_count > 0 %}s-danger{% elif not warmup_complete %}s-warn{% else %}s-ok{% endif %}">
     <span class="dot"></span>
     {% if anomaly_count > 0 %}
-      {{ anomaly_count }} anomal{% if anomaly_count > 1 %}ies{% else %}y{% endif %} above threshold
+      {{ anomaly_count }} anomal{% if anomaly_count > 1 %}ies{% else %}y{% endif %} breached alert threshold (≥ {{ alert_threshold }})
     {% elif not warmup_complete %}
       Baseline learning in progress
     {% else %}
-      All systems nominal
+      All systems nominal · continuous baseline active
     {% endif %}
-    <span class="s-detail">score ≥ {{ alert_threshold }} · peak {{ max_score }}/100</span>
+    <span class="s-detail">alert threshold: {{ alert_threshold }}/100</span>
   </div>
 
   <!-- TABS (with Lucide SVG icons per tab) -->
@@ -735,7 +883,7 @@
       <!-- Lucide: alert-triangle -->
       <svg class="i-tab" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       Triage
-      <span class="cnt {% if anomaly_count > 0 %}cnt-alert{% endif %}">{% if anomaly_count > 0 %}{{ anomaly_count }}{% elif flagged_events|length > 0 %}{{ flagged_events|length }}{% else %}0{% endif %}</span>
+      <span class="cnt {% if anomaly_count > 0 %}cnt-alert{% elif flagged_events|length > 0 %}cnt-warn{% endif %}">{% if anomaly_count > 0 %}{{ anomaly_count }}{% elif flagged_events|length > 0 %}{{ flagged_events|length }}{% else %}0{% endif %}</span>
     </button>
     <button class="tab" onclick="switchTab('logs')" id="t-logs">
       <!-- Lucide: terminal -->
@@ -788,11 +936,26 @@
               {% for c in hour_histogram %}
                 {% set h_idx = loop.index0 %}
                 {% set pct = (c / max_h * 100)|round|int %}
-                {% set is_hot = c > mean_h * 2.5 and c > 3 %}
+                {% set is_flagged = h_idx in flagged_hours %}
+                {% set is_hot = (c > mean_h * 2.5 and c > 3) or is_flagged %}
                 {% set is_active = c > 0 %}
                 <div class="chart-col">
-                  <div class="bar-tip">{{ c }} event{{ 's' if c != 1 else '' }} · {{ '%02d'|format(h_idx) }}:00{% if is_hot %} · unusual{% endif %}</div>
-                  <div class="bar {% if is_hot %}bar-hot{% elif is_active %}bar-active{% else %}bar-normal{% endif %}" style="height: {{ [pct, 2]|max }}%;"></div>
+                  {% if is_flagged %}
+                    <div class="bar-callout">{{ '%02d'|format(h_idx) }}:00 · {{ flagged_hours[h_idx].score }}pts</div>
+                  {% elif is_hot %}
+                    <div class="bar-callout">{{ '%02d'|format(h_idx) }}:00 · peak</div>
+                  {% endif %}
+
+                  <div class="bar-tip">
+                    <strong>{{ '%02d'|format(h_idx) }}:00</strong> · {{ c }} event{{ 's' if c != 1 else '' }}
+                    {% if is_flagged %}
+                      <div style="color:var(--alarm);font-size:10px;margin-top:2px;">› {{ flagged_hours[h_idx].reason }} ({{ flagged_hours[h_idx].score }} pts)</div>
+                    {% elif is_hot %}
+                      <div style="color:var(--warn);font-size:10px;margin-top:2px;">› Unusually high volume hour</div>
+                    {% endif %}
+                  </div>
+
+                  <div class="bar {% if is_flagged or is_hot %}bar-hot{% elif is_active %}bar-active{% else %}bar-normal{% endif %}" style="height: {{ [pct, 2]|max }}%;"></div>
                   {% if h_idx % 3 == 0 %}
                     <span class="bar-lbl">{{ '%02d'|format(h_idx) }}</span>
                   {% else %}
@@ -813,13 +976,18 @@
         <div class="baseline-item">
           <span class="baseline-label">Status</span>
           <span class="baseline-val" style="color: {% if warmup_complete %}var(--ok){% else %}var(--warn){% endif %}">
-            {% if warmup_complete %}Active{% else %}Learning{% endif %}
+            <span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:{% if warmup_complete %}var(--ok){% else %}var(--warn){% endif %};vertical-align:1px;margin-right:4px;"></span>
+            {% if warmup_complete %}Active (Profiled){% else %}Learning Phase{% endif %}
           </span>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" style="width: {% if warmup_complete %}100{% else %}45{% endif %}%;"></div>
+        <div style="margin-top: 14px; margin-bottom: 6px; display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono);">
+          <span style="color: var(--t3);">Warm-up progress</span>
+          <span style="color: var(--t1); font-weight: 600;">{% if warmup_complete %}100%{% else %}{{ ((stats.total_events / 50) * 100)|round|int }}%{% endif %}</span>
         </div>
-        <div style="font-size: 11px; color: var(--t3); margin-bottom: 14px;">{{ warmup_message }}</div>
+        <div class="progress-track" style="height: 6px; background: var(--bg-0); border: 1px solid var(--border-0); margin-bottom: 8px;">
+          <div class="progress-fill" style="width: {% if warmup_complete %}100{% else %}{{ [((stats.total_events / 50) * 100)|round|int, 10]|max }}{% endif %}%; background: {% if warmup_complete %}var(--ok){% else %}var(--warn){% endif %};"></div>
+        </div>
+        <div style="font-size: 11px; color: var(--t3); margin-bottom: 14px; font-family: var(--mono);">{{ warmup_message }}</div>
         <div class="baseline-item"><span class="baseline-label">Alert threshold</span><span class="baseline-val">{{ alert_threshold }}/100</span></div>
         <div class="baseline-item"><span class="baseline-label">Enrichment</span><span class="baseline-val">ip-api.com</span></div>
         <div class="baseline-item"><span class="baseline-label">Peak score</span><span class="baseline-val">{{ max_score }}/100</span></div>
