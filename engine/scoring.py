@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from ingest.schema import AuthEvent
 from engine.models import EnrichmentResult, ScoredEvent
 from engine.baseline import Baseline
+from engine.playbooks import get_playbook
 
 
 # ── Default weights (overridden by config.yaml) ───────────────────
@@ -37,20 +38,9 @@ class Scorer:
     """Assigns an anomaly score (0–100) to each AuthEvent.
 
     The scorer compares the event against the per-user baseline and
-    accumulates points from each triggered signal. The final score is
-    capped at 100.
-
-    Attributes:
-        weights: dict mapping signal name → integer weight (from config).
-        z_threshold: z-score threshold for unusual-hour detection.
-        alert_threshold: score at or above which an event is "alert-level".
-        always_alert: list of signal names that trigger an alert regardless
-                      of threshold (e.g. "new_ssh_key").
-        brute_force_window: minutes to look back for failed logins.
-        brute_force_success_window: minutes after failures to look for
-                                    a success.
-        brute_force_min_failures: minimum failure count to trigger the
-                                  brute-force signal.
+    accumulates points from each triggered signal. If multi-event attack
+    sequences are detected within a rolling window, a sequence multiplier
+    and chain bonus are applied BEFORE the score is capped at 100.
     """
 
     def __init__(self, config: dict) -> None:
@@ -65,6 +55,11 @@ class Scorer:
         self.brute_force_min_failures = scoring_cfg.get(
             "brute_force_min_failures", 3)
 
+        # Correlation & sequence scoring settings
+        correlation_cfg = config.get("correlation", {})
+        self.sequence_window_min = correlation_cfg.get("sequence_window_min", 15)
+        self.sequence_multiplier = correlation_cfg.get("sequence_multiplier", 1.5)
+
     def score(self, event: AuthEvent,
               enrichment: EnrichmentResult | None,
               baseline: Baseline) -> ScoredEvent:
@@ -75,6 +70,7 @@ class Scorer:
         """
         score = 0
         reasons: list[str] = []
+        signals: list[str] = []
 
         # ── Signal 1: New ASN ──────────────────────────────────────
         if (enrichment and enrichment.enriched
@@ -88,6 +84,7 @@ class Scorer:
                 # Known IP, new ASN (unlikely but possible — ISP change)
                 w = self.weights["new_asn"]
                 score += w
+                signals.append("new_asn")
                 reasons.append(
                     f"New ASN {enrichment.asn} ({enrichment.org}) "
                     f"never seen for user '{event.username}' (+{w})"
@@ -96,6 +93,7 @@ class Scorer:
                 # New IP AND new ASN — most suspicious
                 w = self.weights["new_ip_new_asn"]
                 score += w
+                signals.append("new_ip_new_asn")
                 reasons.append(
                     f"New IP {event.source_ip} from unknown ASN "
                     f"{enrichment.asn} ({enrichment.org}, "
@@ -110,6 +108,7 @@ class Scorer:
               and baseline.is_asn_known(event.username, enrichment.asn)):
             w = self.weights["new_ip_known_asn"]
             score += w
+            signals.append("new_ip_known_asn")
             reasons.append(
                 f"New IP {event.source_ip} but from known ASN "
                 f"{enrichment.asn} for user '{event.username}' (+{w})"
@@ -122,6 +121,7 @@ class Scorer:
             # Can't tell if ASN is new — use a moderate weight
             w = self.weights["new_ip_known_asn"]
             score += w
+            signals.append("new_ip_known_asn")
             reasons.append(
                 f"New IP {event.source_ip} for user '{event.username}', "
                 f"ASN unknown (enrichment unavailable) (+{w})"
@@ -132,6 +132,7 @@ class Scorer:
             hour_score = self._score_hour(event, baseline)
             if hour_score > 0:
                 score += hour_score
+                signals.append("unusual_hour")
                 try:
                     hour = datetime.fromisoformat(event.timestamp).hour
                 except ValueError:
@@ -145,6 +146,7 @@ class Scorer:
         if event.event_type == "ssh_key_added":
             w = self.weights["new_ssh_key"]
             score += w
+            signals.append("new_ssh_key")
             reasons.append(
                 f"New SSH key added for user '{event.username}' — "
                 f"always flagged (+{w})"
@@ -155,6 +157,7 @@ class Scorer:
                 and not baseline.is_sudo_user_known(event.username)):
             w = self.weights["first_sudo"]
             score += w
+            signals.append("first_sudo")
             reasons.append(
                 f"First sudo usage by '{event.username}' — "
                 f"this user has never used sudo before (+{w})"
@@ -165,23 +168,92 @@ class Scorer:
             bf_score = self._score_brute_force(event, baseline)
             if bf_score > 0:
                 score += bf_score
+                signals.append("brute_force_pattern")
                 reasons.append(
                     f"Possible brute-force: multiple failed logins from "
                     f"{event.source_ip} followed by success (+{bf_score})"
                 )
 
-        # Cap at 100
-        final_score = min(100, score)
+        # ── Sequence Correlation & Multi-Stage Attack Chains ───────
+        recent_events = baseline.get_recent_user_events(
+            event.username,
+            window_minutes=self.sequence_window_min,
+            current_timestamp=event.timestamp,
+        )
+
+        past_signals = set(s for r in recent_events for s in r.get("signals", []))
+
+        has_initial_access = any(
+            s in past_signals or s in signals
+            for s in ("new_asn", "new_ip_new_asn", "brute_force_pattern")
+        )
+        has_escalation = "first_sudo" in past_signals or "first_sudo" in signals or event.event_type == "sudo_used"
+        has_persistence = "new_ssh_key" in past_signals or "new_ssh_key" in signals or event.event_type == "ssh_key_added"
+
+        seq_mult = 1.0
+        seq_bonus = 0
+
+        # Chain 1: Full post-compromise kill chain (Access → Escalation → Persistence)
+        if has_initial_access and has_escalation and has_persistence and len(recent_events) > 0:
+            signals.append("kill_chain")
+            seq_mult = max(self.sequence_multiplier, 1.8)
+            seq_bonus = 40
+            reasons.append(
+                f"🚨 CRITICAL KILL CHAIN: Multi-stage post-compromise sequence detected within "
+                f"{self.sequence_window_min}m (Initial Access → Privilege Escalation → Persistence) "
+                f"[{seq_mult}x multiplier +{seq_bonus}]"
+            )
+        # Chain 2: Initial access followed by privilege escalation
+        elif (has_initial_access and (event.event_type == "sudo_used" or "first_sudo" in signals)
+              and any(s in past_signals for s in ("new_asn", "new_ip_new_asn", "brute_force_pattern"))):
+            signals.append("correlated_escalation")
+            seq_mult = self.sequence_multiplier
+            seq_bonus = 25
+            reasons.append(
+                f"🚨 Correlated Sequence: Privilege escalation (sudo) preceded by novel remote access "
+                f"within {self.sequence_window_min}m [{seq_mult}x multiplier +{seq_bonus}]"
+            )
+        # Chain 3: Initial access followed by persistence planting
+        elif (has_initial_access and (event.event_type == "ssh_key_added" or "new_ssh_key" in signals)
+              and any(s in past_signals for s in ("new_asn", "new_ip_new_asn"))):
+            signals.append("correlated_persistence")
+            seq_mult = self.sequence_multiplier
+            seq_bonus = 30
+            reasons.append(
+                f"🚨 Correlated Sequence: Persistence mechanism planted ({event.event_type}) preceded by "
+                f"novel remote access within {self.sequence_window_min}m [{seq_mult}x multiplier +{seq_bonus}]"
+            )
+
+        # ── Order of Operations: Multipliers applied BEFORE the 100-cap ──
+        # NOTE: Multipliers and chain bonuses must compound on the raw score first.
+        # The 100-point ceiling is enforced strictly as the final step.
+        correlated_score = int(score * seq_mult) + seq_bonus
+        final_score = min(100, correlated_score)
+
+        playbook = get_playbook(
+            signals=signals,
+            user=event.username,
+            ip=event.source_ip or "unknown",
+            asn=enrichment.asn if enrichment else "unknown",
+            city=enrichment.city if enrichment else "",
+            country=enrichment.country if enrichment else "",
+        )
 
         return ScoredEvent(
             event=event,
             enrichment=enrichment,
             score=final_score,
             reasons=reasons,
+            signals=signals,
+            playbook=playbook,
         )
 
     def is_alert(self, scored: ScoredEvent) -> bool:
         """Should this event trigger an alert?"""
+        # Correlated attack chains always alert
+        if any(s in scored.signals for s in ("kill_chain", "correlated_escalation", "correlated_persistence")):
+            return True
+
         # Always-alert signals
         for signal in self.always_alert:
             if signal == "new_ssh_key" and scored.event.event_type == "ssh_key_added":

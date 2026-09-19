@@ -31,6 +31,18 @@ scoring:
   always_alert:            # These signal types always alert regardless of threshold
     - new_ssh_key
 
+correlation:
+  sequence_window_min: 15     # Lookback window for multi-stage sequence correlation
+  sequence_multiplier: 1.5    # Multiplier applied when correlated attack sequences are detected
+
+integrity:
+  enabled: true
+  targets:
+    - "/etc/ssh/sshd_config"
+    - "~/.ssh/authorized_keys"
+    - "/etc/sudoers"
+    - "/etc/sudoers.d"
+
 enrichment:
   enabled: true
   provider: "ip-api"       # Pluggable: "ip-api" | future paid providers

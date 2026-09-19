@@ -964,6 +964,14 @@
       <span>📋 System Log Stream</span>
       <span class="tab-badge">{{ all_events|length }}</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('integrity')" id="tab-btn-integrity">
+      <span>🛡️ Config Drift & FIM</span>
+      {% if integrity_alerts > 0 %}
+        <span class="tab-badge badge-alert">{{ integrity_alerts }} alert(s)</span>
+      {% else %}
+        <span class="tab-badge">{{ integrity_results|length }}</span>
+      {% endif %}
+    </button>
   </nav>
 
   <!-- ═════════════════════════════════════════════════════════════ -->
@@ -1192,15 +1200,17 @@
 
             <!-- Recommended Response -->
             <div class="action-callout">
-              <strong>💡 Recommended Action:</strong>
-              {% if "SSH key" in se.reasons|join(" ") %}
-                Verify authorized_keys changes with account owner. Revoke untrusted public keys immediately.
+              <strong>📋 Incident Response Playbook (Display-Only):</strong>
+              {% if se.playbook %}
+                <pre style="margin-top: 6px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: #cbd5e1; line-height: 1.5;">{{ se.playbook }}</pre>
+              {% elif "SSH key" in se.reasons|join(" ") %}
+                <p style="margin-top: 4px;">Verify authorized_keys changes with account owner. Revoke untrusted public keys immediately.</p>
               {% elif "sudo" in se.reasons|join(" ") %}
-                Review /etc/sudoers privileges for user '{{ se.event.username }}' to ensure unauthorized privilege escalation has not occurred.
+                <p style="margin-top: 4px;">Review /etc/sudoers privileges for user '{{ se.event.username }}' to ensure unauthorized privilege escalation has not occurred.</p>
               {% elif "brute-force" in se.reasons|join(" ") %}
-                Block source IP {{ se.event.source_ip }} via local firewall (pf/iptables) and verify password complexity.
+                <p style="margin-top: 4px;">Block source IP {{ se.event.source_ip }} via local firewall (pf/iptables) and verify password complexity.</p>
               {% else %}
-                Contact user '{{ se.event.username }}' to confirm off-hours or remote login from this location.
+                <p style="margin-top: 4px;">Contact user '{{ se.event.username }}' to confirm off-hours or remote login from this location.</p>
               {% endif %}
             </div>
           </div>
@@ -1294,6 +1304,12 @@
                   <strong>Flagged reasons:</strong> {{ se.reasons|join("; ") }}
                 </div>
               {% endif %}
+              {% if se.playbook %}
+                <div style="margin-top: 10px; padding: 10px 14px; background: rgba(6, 182, 212, 0.08); border-left: 3px solid var(--accent-cyan); border-radius: var(--radius-sm);">
+                  <strong style="color: var(--accent-cyan);">📋 Incident Response Guidance (Display-Only):</strong>
+                  <pre style="margin-top: 4px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: #cbd5e1; line-height: 1.5;">{{ se.playbook }}</pre>
+                </div>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -1301,6 +1317,86 @@
       </table>
     </div>
 
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <!-- TAB 4: CONFIG DRIFT & FILE INTEGRITY MONITORING (FIM)          -->
+  <!-- ═════════════════════════════════════════════════════════════ -->
+  <div id="pane-integrity" class="tab-pane">
+    <div class="dashboard-panel" style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h3 style="font-size: 16px;">File Integrity & Configuration Drift Monitor</h3>
+          <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">
+            Monitors security critical configurations (sshd_config, authorized_keys, sudoers) against cryptographic SHA-256 baselines.
+          </p>
+        </div>
+        <div>
+          {% if integrity_alerts > 0 %}
+            <span class="triage-badge badge-critical" style="font-size: 13px; padding: 6px 14px;">🚨 {{ integrity_alerts }} Drift Alert(s)</span>
+          {% else %}
+            <span class="triage-badge badge-nominal" style="font-size: 13px; padding: 6px 14px;">✓ Clean Integrity Baseline</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if integrity_results|length == 0 %}
+      <div class="dashboard-panel empty-state">
+        <div class="empty-state-icon">🛡️</div>
+        <h3>No Monitored Targets</h3>
+        <p>File integrity monitoring is either disabled or no targets were specified in config.yaml.</p>
+      </div>
+    {% else %}
+      <div class="log-table-container">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th style="width: 150px;">Integrity Status</th>
+              <th>Monitored Target</th>
+              <th style="width: 150px;">SHA-256 Hash</th>
+              <th>Audit Telemetry & Playbook</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ir in integrity_results %}
+              <tr>
+                <td>
+                  {% if ir.status == 'OK' %}
+                    <span class="triage-badge badge-nominal">✓ Clean</span>
+                  {% elif ir.status == 'MODIFIED' %}
+                    <span class="triage-badge badge-critical">🚨 Modified</span>
+                  {% elif ir.status == 'CREATED' %}
+                    <span class="triage-badge badge-elevated">⚠️ Created</span>
+                  {% elif ir.status == 'DELETED' %}
+                    <span class="triage-badge badge-critical">🚨 Deleted</span>
+                  {% elif ir.status == 'PERMISSION_DENIED' %}
+                    <span class="triage-badge badge-elevated">🔒 Root Required</span>
+                  {% else %}
+                    <span class="triage-badge">{{ ir.status }}</span>
+                  {% endif %}
+                </td>
+                <td style="font-family: var(--font-mono); font-weight: 500;">
+                  {{ ir.filepath }}
+                </td>
+                <td style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+                  {{ ir.sha256[:12] }}{% if ir.sha256 %}...{% else %}—{% endif %}
+                </td>
+                <td style="font-size: 12px;">
+                  <div>{{ ir.message }}</div>
+                  {% if ir.playbook %}
+                    <div style="margin-top: 8px; padding: 8px 12px; background: rgba(244, 63, 94, 0.08); border-left: 2px solid var(--severity-critical); border-radius: 4px;">
+                      <strong style="color: var(--severity-critical); font-size: 11px;">📋 Containment Playbook:</strong>
+                      <pre style="margin-top: 4px; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: #f8fafc; line-height: 1.4;">{{ ir.playbook }}</pre>
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
   </div>
 
 </div>

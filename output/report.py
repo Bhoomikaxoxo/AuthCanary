@@ -25,6 +25,7 @@ def generate_report(
     baseline: Baseline,
     config: dict,
     skip_warmup: bool = False,
+    integrity_results: list | None = None,
 ) -> tuple[Path, Path]:
     """Generate report.json and report.html.
 
@@ -33,6 +34,7 @@ def generate_report(
         baseline: the Baseline instance (for stats).
         config: full config dict.
         skip_warmup: whether warm-up was bypassed.
+        integrity_results: optional list of IntegrityResult objects from FIM.
 
     Returns:
         (path_to_json, path_to_html)
@@ -49,6 +51,8 @@ def generate_report(
 
     # Filter to events above threshold for the report (but include all scored > 0)
     anomaly_count = sum(1 for se in scored_events if se.score >= alert_threshold)
+    integrity_list = integrity_results or []
+    integrity_alerts = sum(1 for ir in integrity_list if getattr(ir, "is_alert", False))
 
     # ── JSON report ────────────────────────────────────────────────
     report_data = {
@@ -57,7 +61,9 @@ def generate_report(
         "warmup_message": baseline.warmup_status(),
         "alert_threshold": alert_threshold,
         "anomaly_count": anomaly_count,
+        "integrity_alerts": integrity_alerts,
         "stats": stats,
+        "integrity": [ir.to_dict() for ir in integrity_list],
         "scored_events": [se.to_dict() for se in scored_events],
     }
 
@@ -165,6 +171,8 @@ def generate_report(
         hour_histogram=hour_histogram,
         scored_events=template_alert_events,       # Backwards compatible: alert events for "What's Important"
         all_events=template_all_events,            # Full list for "Systematic Log Stream"
+        integrity_results=[_Obj(ir.to_dict()) for ir in integrity_list],
+        integrity_alerts=integrity_alerts,
     )
 
     html_path = output_dir / "report.html"

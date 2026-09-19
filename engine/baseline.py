@@ -12,6 +12,7 @@ All tables live in a single SQLite file (zero-config, no server).
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -91,7 +92,26 @@ class Baseline:
                     source_ip   TEXT,
                     score       INTEGER,
                     reasons     TEXT,
-                    raw_line    TEXT
+                    raw_line    TEXT,
+                    signals_json TEXT DEFAULT '[]'
+                );
+
+                CREATE TABLE IF NOT EXISTS file_integrity_hashes (
+                    filepath     TEXT PRIMARY KEY,
+                    sha256       TEXT,
+                    mtime        REAL,
+                    size         INTEGER,
+                    last_checked TEXT,
+                    status       TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS alert_feedback (
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username           TEXT,
+                    signal             TEXT,
+                    marked_benign_at   TEXT,
+                    admin_user         TEXT,
+                    notes              TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS warmup_state (
@@ -101,6 +121,12 @@ class Baseline:
                     warmup_complete INTEGER DEFAULT 0
                 );
             """)
+
+            # Dynamic migration: ensure event_log has signals_json if pre-existing
+            cursor = conn.execute("PRAGMA table_info(event_log)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "signals_json" not in columns:
+                conn.execute("ALTER TABLE event_log ADD COLUMN signals_json TEXT DEFAULT '[]'")
 
             # Ensure warmup_state has a row
             row = conn.execute("SELECT id FROM warmup_state").fetchone()
@@ -229,22 +255,68 @@ class Baseline:
             ).fetchone()
         return row[0] if row else 0
 
+    def get_recent_user_events(
+        self,
+        username: str,
+        window_minutes: int,
+        current_timestamp: str | None = None,
+    ) -> list[dict]:
+        """Fetch user events within the rolling window prior to current_timestamp."""
+        if not current_timestamp:
+            current_time = datetime.now()
+        else:
+            try:
+                current_time = datetime.fromisoformat(current_timestamp)
+            except ValueError:
+                current_time = datetime.now()
+
+        since = (current_time - timedelta(minutes=window_minutes)).isoformat()
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT timestamp, event_type, username, source_ip, score, reasons, signals_json "
+                "FROM event_log "
+                "WHERE username = ? AND timestamp >= ? AND timestamp <= ? "
+                "ORDER BY timestamp ASC",
+                (username, since, current_time.isoformat()),
+            ).fetchall()
+
+        results = []
+        for r in rows:
+            try:
+                sig_list = json.loads(r["signals_json"]) if r["signals_json"] else []
+            except (json.JSONDecodeError, TypeError):
+                sig_list = []
+            results.append({
+                "timestamp": r["timestamp"],
+                "event_type": r["event_type"],
+                "username": r["username"],
+                "source_ip": r["source_ip"],
+                "score": r["score"],
+                "reasons": r["reasons"],
+                "signals": sig_list,
+            })
+        return results
+
     # ── Updates (after scoring, update the baseline) ───────────────
 
     def record_event(self, event: AuthEvent,
                      enrichment: EnrichmentResult | None,
-                     score: int, reasons: list[str]) -> None:
+                     score: int, reasons: list[str],
+                     signals: list[str] | None = None) -> None:
         """Record a processed event and update all baseline tables."""
         now = datetime.now().isoformat()
+        signals_str = json.dumps(signals or [])
 
         with sqlite3.connect(self.db_path) as conn:
-            # Log the event
+            # Log the event with structured signals
             conn.execute(
                 "INSERT INTO event_log "
-                "(timestamp, event_type, username, source_ip, score, reasons, raw_line) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(timestamp, event_type, username, source_ip, score, reasons, raw_line, signals_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (event.timestamp, event.event_type, event.username,
-                 event.source_ip, score, "; ".join(reasons), event.raw_line),
+                 event.source_ip, score, "; ".join(reasons), event.raw_line, signals_str),
             )
 
             # Update hour histogram for logins

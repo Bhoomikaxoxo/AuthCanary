@@ -323,13 +323,28 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         ]
 
         if cursor.last_timestamp:
-            cmd += ["--start", cursor.last_timestamp]
+            try:
+                # /usr/bin/log show requires format '%Y-%m-%d %H:%M:%S'
+                clean_ts = cursor.last_timestamp.replace("T", " ")
+                if "+" in clean_ts:
+                    clean_ts = clean_ts.split("+")[0]
+                if "-" in clean_ts and clean_ts.count("-") > 2:
+                    clean_ts = clean_ts.rsplit("-", 1)[0]
+                if "." in clean_ts:
+                    clean_ts = clean_ts.split(".")[0]
+                dt = datetime.strptime(clean_ts.strip()[:19], "%Y-%m-%d %H:%M:%S")
+                if dt > datetime.now():
+                    cmd += ["--last", "48h"]
+                else:
+                    cmd += ["--start", dt.strftime("%Y-%m-%d %H:%M:%S")]
+            except Exception:
+                cmd += ["--last", "48h"]
         else:
-            cmd += ["--last", "48h"]
+            cmd += ["--last", "7d"]
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30,
+                cmd, capture_output=True, text=True, timeout=45,
             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             result = None
@@ -346,7 +361,13 @@ class MacOSUnifiedLogAdapter(OSAdapter):
 
             for entry in entries:
                 msg = entry.get("eventMessage", "")
-                ts = entry.get("timestamp", datetime.now().isoformat())
+                raw_ts = entry.get("timestamp", datetime.now().isoformat())
+                try:
+                    # Normalize timestamp to ISO string
+                    dt_entry = datetime.fromisoformat(raw_ts)
+                    ts = dt_entry.strftime("%Y-%m-%dT%H:%M:%S")
+                except Exception:
+                    ts = raw_ts.replace(" ", "T")
                 ev = self._parse_message(msg, ts, json.dumps(entry))
                 if ev:
                     events.append(ev)
@@ -354,9 +375,17 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         # Sort all events chronologically
         events.sort(key=lambda e: e.timestamp)
 
+        last_ts = events[-1].timestamp if events else cursor.last_timestamp
+        if last_ts:
+            try:
+                dt_cursor = datetime.fromisoformat(last_ts)
+                last_ts = dt_cursor.strftime("%Y-%m-%dT%H:%M:%S")
+            except Exception:
+                pass
+
         new_cursor = CursorState(
             source="macos_unified_log",
-            last_timestamp=events[-1].timestamp if events else cursor.last_timestamp,
+            last_timestamp=last_ts,
         )
         return events, new_cursor
 
@@ -364,7 +393,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         """Read historical login sessions using the macOS `last` utility."""
         events: list[AuthEvent] = []
         try:
-            res = subprocess.run(["last", "-n", "60"], capture_output=True, text=True, timeout=5)
+            res = subprocess.run(["last", "-n", "100"], capture_output=True, text=True, timeout=5)
             if res.returncode != 0:
                 return []
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -383,7 +412,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                     if dt > datetime.now():
                         dt = dt.replace(year=current_year - 1)
                     events.append(AuthEvent(
-                        timestamp=dt.isoformat(),
+                        timestamp=dt.strftime("%Y-%m-%dT%H:%M:%S"),
                         event_type="login_success",
                         username=user,
                         source_ip="127.0.0.1",
@@ -425,7 +454,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         # 3. macOS auth failed
         if "Failed authorizing right" in msg:
             m = re.search(r"for user\s+(\S+)", msg)
-            user = m.group(1) if m else "unknown"
+            user = m.group(1) if m else os.environ.get("USER", "unknown")
             return AuthEvent(
                 timestamp=ts,
                 event_type="login_failure",
@@ -435,13 +464,20 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 raw_line=raw_line,
             )
 
-        # 4. sudo execution
-        m = re.search(r"sudo:\s+(\S+)\s+:", msg)
+        # 4. sudo execution (supports both macOS `/usr/bin/sudo` and standard Linux syslog)
+        # Format 1: "    username : TTY=ttys000 ; ... ; COMMAND=..."
+        # Format 2: "sudo:   username : TTY=... ; COMMAND=..."
+        m = re.search(
+            r"(?:sudo:\s*)?(\S+)\s*:\s*(?:(?P<failed>a password is required|1 incorrect password attempt|conversational failed|auth could not identify password for|incorrect password)\s*;\s*)?TTY=\S+\s*;\s*PWD=.*?;\s*USER=(\S+)\s*;\s*COMMAND=(.*)",
+            msg,
+        )
         if m:
+            user = m.group(1)
+            is_failed = bool(m.group("failed"))
             return AuthEvent(
                 timestamp=ts,
-                event_type="sudo_used",
-                username=m.group(1),
+                event_type="login_failure" if is_failed else "sudo_used",
+                username=user,
                 source_ip="127.0.0.1",
                 auth_method="sudo",
                 raw_line=raw_line,

@@ -74,6 +74,15 @@ elif [ "$OS" = "Darwin" ]; then
     echo "  in System Preferences → Privacy & Security."
 fi
 
+# ── File Integrity Monitoring permissions check ──────────────────
+if [ -f "/etc/sudoers" ] && [ ! -r "/etc/sudoers" ]; then
+    echo ""
+    echo "  ℹ Note on File Integrity Monitoring (FIM):"
+    echo "    /etc/sudoers is restricted to root. To monitor system sudoers"
+    echo "    and sshd_config without permission warnings, run AuthCanary"
+    echo "    as root or configure an elevated scheduled service."
+fi
+
 echo ""
 echo "✓ Core setup complete."
 echo ""

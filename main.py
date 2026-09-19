@@ -27,6 +27,7 @@ from engine.models import ScoredEvent
 from output.report import generate_report
 from output.alerts import get_channels
 from output.server import start_server
+from engine.integrity import IntegrityChecker
 
 
 def load_config(config_path: str) -> dict:
@@ -78,10 +79,32 @@ def run(args: argparse.Namespace) -> None:
     cursor = cursor_mgr.load()
     events, new_cursor = adapter.read_events(cursor)
 
+    # ── File Integrity Monitoring (FIM) ────────────────────────────
+    integrity_cfg = config.get("integrity", {})
+    integrity_results = []
+    drift_alerts = []
+    if integrity_cfg.get("enabled", True):
+        targets = integrity_cfg.get("targets")
+        checker = IntegrityChecker(db_path=db_path, targets=targets)
+        integrity_results = checker.check(dry_run=args.dry_run)
+        drift_alerts = [r for r in integrity_results if r.is_alert]
+        denied = [r for r in integrity_results if r.status == "PERMISSION_DENIED"]
+
+        if drift_alerts:
+            print(f"  🚨 Integrity: {len(drift_alerts)} configuration drift alert(s) detected!")
+            for da in drift_alerts:
+                print(f"     • {da.message}")
+        elif denied:
+            print(f"  Integrity: {len(integrity_results)} target(s) monitored ({len(denied)} permission denied)")
+        else:
+            print(f"  Integrity: {len(integrity_results)} target(s) monitored (0 drift)")
+
     if not events:
         print("  No new events to process.")
-        # Still generate a report with current stats
-        json_path, html_path = generate_report([], baseline, config, args.skip_warmup)
+        # Still generate a report with current stats and integrity results
+        json_path, html_path = generate_report(
+            [], baseline, config, args.skip_warmup, integrity_results=integrity_results,
+        )
         print(f"\n  Report: {html_path}")
         cursor_mgr.save(new_cursor)
         return
@@ -123,13 +146,13 @@ def run(args: argparse.Namespace) -> None:
         if enrichment_cache and event.source_ip:
             enrichment = enrichment_cache.lookup(event.source_ip)
 
-        # Score against baseline
+        # Score against baseline (evaluates individual signals + correlated sequences)
         scored = scorer.score(event, enrichment, baseline)
 
-        # Record in baseline (learn from this event)
+        # Record in baseline (learn from this event, saving structured signals)
         if not args.dry_run:
             baseline.record_event(
-                event, enrichment, scored.score, scored.reasons,
+                event, enrichment, scored.score, scored.reasons, signals=scored.signals,
             )
 
         # Only collect alerts if past warm-up
@@ -141,7 +164,7 @@ def run(args: argparse.Namespace) -> None:
     # ── Output ─────────────────────────────────────────────────────
     if not args.dry_run:
         json_path, html_path = generate_report(
-            scored_events, baseline, config, args.skip_warmup,
+            scored_events, baseline, config, args.skip_warmup, integrity_results=integrity_results,
         )
         print(f"\n  Report: {html_path}")
         print(f"  JSON:   {json_path}")
@@ -149,9 +172,10 @@ def run(args: argparse.Namespace) -> None:
         print("\n  [dry-run] Skipping report generation and baseline update.")
 
     # ── Alerts ─────────────────────────────────────────────────────
-    if alert_events and warmed_up:
+    if (alert_events or drift_alerts) and warmed_up:
         channels = get_channels(config)
-        print(f"\n  🚨 {len(alert_events)} alert(s):\n")
+        total_alerts = len(alert_events) + len(drift_alerts)
+        print(f"\n  🚨 {total_alerts} alert(s) ({len(alert_events)} auth, {len(drift_alerts)} integrity):\n")
         for ch in channels:
             for ae in alert_events:
                 ch.send(ae)
@@ -165,7 +189,8 @@ def run(args: argparse.Namespace) -> None:
     # Summary
     print(f"\n  Summary: {len(events)} events processed, "
           f"{len(scored_events)} scored, "
-          f"{len(alert_events)} alerts.")
+          f"{len(alert_events)} auth alerts, "
+          f"{len(drift_alerts)} drift alerts.")
 
 
 def main() -> None:

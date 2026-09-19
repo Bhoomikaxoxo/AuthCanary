@@ -30,12 +30,14 @@ class EnrichmentResult:
 
 @dataclass(slots=True)
 class ScoredEvent:
-    """An AuthEvent bundled with enrichment, score, and human-readable reasons."""
+    """An AuthEvent bundled with enrichment, score, reasons, and actionable playbooks."""
 
     event: AuthEvent
     enrichment: EnrichmentResult | None
     score: int = 0
     reasons: list[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
+    playbook: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -43,4 +45,6 @@ class ScoredEvent:
             "enrichment": self.enrichment.to_dict() if self.enrichment else None,
             "score": self.score,
             "reasons": self.reasons,
+            "signals": self.signals,
+            "playbook": self.playbook,
         }

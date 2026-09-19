@@ -38,6 +38,10 @@ class ConsoleChannel(AlertChannel):
         print(f"   Reasons: {reasons}")
         if event.source_ip:
             print(f"   Source IP: {event.source_ip}")
+        if scored.playbook:
+            print("   📋 Suggested Playbook:")
+            for line in scored.playbook.splitlines():
+                print(f"      {line}")
         print()
         return True
 
@@ -62,7 +66,10 @@ class NtfyChannel(AlertChannel):
             f"AuthCanary Alert [{scored.score}/100]: "
             f"{event.event_type} by {event.username}"
         )
-        body = "\n".join(scored.reasons)
+        body_parts = scored.reasons[:]
+        if scored.playbook:
+            body_parts.append("\n📋 Playbook:\n" + scored.playbook)
+        body = "\n".join(body_parts)
         if event.source_ip:
             body += f"\nSource IP: {event.source_ip}"
 
