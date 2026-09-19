@@ -26,6 +26,7 @@ def generate_report(
     config: dict,
     skip_warmup: bool = False,
     integrity_results: list | None = None,
+    all_events: list[ScoredEvent] | None = None,
 ) -> tuple[Path, Path]:
     """Generate report.json and report.html.
 
@@ -107,13 +108,15 @@ def generate_report(
     # 1. Alert events (What's Important / Critical Triage)
     alert_events_raw = [se for se in scored_events if se.score >= alert_threshold]
 
-    # 2. All events (Systematic Log Explorer)
+    # 2. All events (Full Log Stream — includes score-0 events)
+    # Use all_events if provided, otherwise fall back to scored_events
+    full_events = all_events if all_events is not None else scored_events
     template_all_events = []
     user_stats = {}
     event_type_counts = {}
     hour_histogram = [0] * 24
 
-    for se in scored_events:
+    for se in full_events:
         obj = _Obj({
             "score": se.score,
             "reasons": se.reasons,
@@ -142,6 +145,17 @@ def generate_report(
     template_alert_events = [se for se in template_all_events if se.score >= alert_threshold]
     max_score = max((se.score for se in scored_events), default=0)
 
+    login_count = sum(c for k, c in event_type_counts.items() if "login" in k.lower())
+    sudo_count = sum(c for k, c in event_type_counts.items() if "sudo" in k.lower())
+    ssh_count = sum(c for k, c in event_type_counts.items() if "ssh" in k.lower() or "key" in k.lower())
+    filter_counts = {
+        "all": len(template_all_events),
+        "anomalies": anomaly_count,
+        "login": login_count,
+        "sudo": sudo_count,
+        "ssh": ssh_count,
+    }
+
     if max_score >= 60:
         threat_level = "CRITICAL"
         threat_label = "Critical Threat Detected"
@@ -168,6 +182,7 @@ def generate_report(
         stats=_Obj(stats),
         user_stats={k: _Obj(v) for k, v in user_stats.items()},
         event_type_counts=event_type_counts,
+        filter_counts=_Obj(filter_counts),
         hour_histogram=hour_histogram,
         scored_events=template_alert_events,       # Backwards compatible: alert events for "What's Important"
         all_events=template_all_events,            # Full list for "Systematic Log Stream"

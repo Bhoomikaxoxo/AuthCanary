@@ -137,7 +137,8 @@ def run(args: argparse.Namespace) -> None:
     if not warmed_up:
         print(f"\n  {baseline.warmup_status()}")
 
-    scored_events: list[ScoredEvent] = []
+    all_scored_events: list[ScoredEvent] = []  # Every event (score 0+)
+    scored_events: list[ScoredEvent] = []       # Events with score > 0
     alert_events: list[ScoredEvent] = []
 
     for event in events:
@@ -155,7 +156,9 @@ def run(args: argparse.Namespace) -> None:
                 event, enrichment, scored.score, scored.reasons, signals=scored.signals,
             )
 
-        # Only collect alerts if past warm-up
+        # Collect every event for the full log table
+        all_scored_events.append(scored)
+
         if scored.score > 0:
             scored_events.append(scored)
             if warmed_up and scorer.is_alert(scored):
@@ -165,6 +168,7 @@ def run(args: argparse.Namespace) -> None:
     if not args.dry_run:
         json_path, html_path = generate_report(
             scored_events, baseline, config, args.skip_warmup, integrity_results=integrity_results,
+            all_events=all_scored_events,
         )
         print(f"\n  Report: {html_path}")
         print(f"  JSON:   {json_path}")
