@@ -146,6 +146,12 @@ def generate_report(
             })
             template_all_events.append(obj)
 
+    # Build 24-hour histogram, hourly max scores, and hourly summary data
+    hour_histogram = [0] * 24
+    hourly_max_score = [0] * 24
+    hourly_reasons = [""] * 24
+    flagged_hours = {}
+
     for obj in template_all_events:
         u = obj.event.username or "unknown"
         if u not in user_stats:
@@ -161,8 +167,32 @@ def generate_report(
         try:
             h = datetime.fromisoformat(obj.event.timestamp).hour
             hour_histogram[h] += 1
+            if obj.score > hourly_max_score[h]:
+                hourly_max_score[h] = obj.score
+                if obj.reasons:
+                    hourly_reasons[h] = obj.reasons[0]
+            if obj.score > 0:
+                if h not in flagged_hours or obj.score > flagged_hours[h]["score"]:
+                    flagged_hours[h] = {
+                        "score": obj.score,
+                        "reason": obj.reasons[0] if obj.reasons else "Deviation signal",
+                        "username": obj.event.username,
+                    }
         except Exception:
             pass
+
+    hourly_data = []
+    for h in range(24):
+        cnt = hour_histogram[h]
+        sc = hourly_max_score[h]
+        is_anom = sc >= alert_threshold
+        hourly_data.append(_Obj({
+            "hour": h,
+            "count": cnt,
+            "max_score": sc,
+            "is_anomaly": is_anom,
+            "reason": hourly_reasons[h],
+        }))
 
     template_alert_events = [se for se in template_all_events if se.score >= alert_threshold]
     template_flagged_events = [se for se in template_all_events if 0 < se.score < alert_threshold]
@@ -181,19 +211,23 @@ def generate_report(
         "ssh": ssh_count,
     }
 
-    flagged_hours = {}
-    for obj in template_all_events:
-        if obj.score > 0:
-            try:
-                h = datetime.fromisoformat(obj.event.timestamp).hour
-                if h not in flagged_hours or obj.score > flagged_hours[h]["score"]:
-                    flagged_hours[h] = {
-                        "score": obj.score,
-                        "reason": obj.reasons[0] if obj.reasons else "Deviation signal",
-                        "username": obj.event.username,
-                    }
-            except Exception:
-                pass
+    if hasattr(baseline, "get_warmup_info"):
+        warmup_info = baseline.get_warmup_info()
+    else:
+        warmup_info = {
+            "warmup_complete": warmup_complete,
+            "days_elapsed": 0,
+            "days_total": 7,
+            "days_left": 7,
+            "events_processed": len(template_all_events),
+            "min_events": 50,
+            "events_left": max(0, 50 - len(template_all_events)),
+            "event_quota_met": len(template_all_events) >= 50,
+            "time_quota_met": False,
+        }
+    if skip_warmup:
+        warmup_info["warmup_complete"] = True
+        warmup_complete = True
 
     if max_score >= 60:
         threat_level = "CRITICAL"
@@ -208,10 +242,13 @@ def generate_report(
         threat_level = "NOMINAL"
         threat_label = "All Systems Nominal"
 
+    max_h = max(max(hour_histogram, default=0), 1)
+
     html_content = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         warmup_complete=warmup_complete,
         warmup_message=baseline.warmup_status(),
+        warmup_info=_Obj(warmup_info),
         anomaly_count=anomaly_count,
         alert_threshold=alert_threshold,
         max_score=max_score,
@@ -223,6 +260,8 @@ def generate_report(
         event_type_counts=event_type_counts,
         filter_counts=_Obj(filter_counts),
         hour_histogram=hour_histogram,
+        hourly_data=hourly_data,
+        max_h=max_h,
         flagged_hours={k: _Obj(v) for k, v in flagged_hours.items()},
         scored_events=template_alert_events,       # Alert events for "What's Important"
         flagged_events=template_flagged_events,     # Sub-threshold scored events

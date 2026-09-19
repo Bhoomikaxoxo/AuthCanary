@@ -164,28 +164,65 @@ class Baseline:
             return True
         return False
 
-    def warmup_status(self) -> str:
-        """Human-readable warm-up progress message."""
+    def get_warmup_info(self) -> dict:
+        """Structured warm-up progress data for dashboards and reporters."""
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
                 "SELECT start_date, events_processed, warmup_complete "
                 "FROM warmup_state WHERE id = 1"
             ).fetchone()
 
-        if row is None or row[2]:
-            return "✓ Baseline warm-up complete. Alerting is active."
+        if row is None:
+            return {
+                "warmup_complete": False,
+                "days_elapsed": 0,
+                "days_total": self.warmup_days,
+                "days_left": self.warmup_days,
+                "events_processed": 0,
+                "min_events": self.warmup_min_events,
+                "events_left": self.warmup_min_events,
+                "event_quota_met": False,
+                "time_quota_met": False,
+            }
 
         start = datetime.fromisoformat(row[0])
         days_elapsed = (datetime.now() - start).days
         events = row[1]
+        is_complete = bool(row[2]) or (days_elapsed >= self.warmup_days and events >= self.warmup_min_events)
+        event_quota_met = events >= self.warmup_min_events
+        time_quota_met = days_elapsed >= self.warmup_days
         days_left = max(0, self.warmup_days - days_elapsed)
         events_left = max(0, self.warmup_min_events - events)
 
+        return {
+            "warmup_complete": is_complete,
+            "days_elapsed": days_elapsed,
+            "days_total": self.warmup_days,
+            "days_left": days_left,
+            "events_processed": events,
+            "min_events": self.warmup_min_events,
+            "events_left": events_left,
+            "event_quota_met": event_quota_met,
+            "time_quota_met": time_quota_met,
+        }
+
+    def warmup_status(self) -> str:
+        """Human-readable warm-up progress message."""
+        info = self.get_warmup_info()
+        if info["warmup_complete"]:
+            return "✓ Baseline warm-up complete. Alerting is active."
+
+        if info["event_quota_met"]:
+            return (
+                f"Event quota met ({info['events_processed']}/{info['min_events']}) · "
+                f"Day {info['days_elapsed']}/{info['days_total']} time-based warm-up still active."
+            )
+
         return (
-            f"⏳ Warm-up: Day {days_elapsed}/{self.warmup_days}, "
-            f"{events}/{self.warmup_min_events} events processed. "
+            f"⏳ Warm-up: Day {info['days_elapsed']}/{info['days_total']}, "
+            f"{info['events_processed']}/{info['min_events']} events processed. "
             f"Learning baseline, not alerting yet. "
-            f"({days_left} days, {events_left} events remaining)"
+            f"({info['days_left']} days, {info['events_left']} events remaining)"
         )
 
     def increment_event_count(self, n: int = 1) -> None:
