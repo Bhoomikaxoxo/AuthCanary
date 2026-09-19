@@ -735,7 +735,7 @@
       <!-- Lucide: alert-triangle -->
       <svg class="i-tab" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       Triage
-      <span class="cnt {% if anomaly_count > 0 %}cnt-alert{% endif %}">{{ anomaly_count }}</span>
+      <span class="cnt {% if anomaly_count > 0 %}cnt-alert{% endif %}">{% if anomaly_count > 0 %}{{ anomaly_count }}{% elif flagged_events|length > 0 %}{{ flagged_events|length }}{% else %}0{% endif %}</span>
     </button>
     <button class="tab" onclick="switchTab('logs')" id="t-logs">
       <!-- Lucide: terminal -->
@@ -861,7 +861,7 @@
 
   <!-- ═══════ TRIAGE ═══════ -->
   <div id="p-triage" class="pane">
-    {% if scored_events|length == 0 %}
+    {% if scored_events|length == 0 and flagged_events|length == 0 %}
       <div class="panel">
         <div class="empty-state">
           <svg class="empty-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
@@ -871,34 +871,80 @@
         </div>
       </div>
     {% else %}
-      <div class="triage-list">
-        {% for se in scored_events %}
-          <div class="t-card {% if se.score >= 60 %}t-crit{% elif se.score >= 40 %}t-warn{% endif %}">
-            <div class="t-head">
-              <div class="t-who">
-                <span class="sc {% if se.score >= 60 %}sc-danger{% else %}sc-warn{% endif %}" style="font-size:10px;">{% if se.score >= 60 %}critical{% else %}elevated{% endif %}</span>
-                <span class="t-user">{{ se.event.username }}</span>
-                <span class="t-time">{{ se.event.timestamp }}</span>
+      {% if scored_events|length > 0 %}
+        <div style="margin-bottom: 12px; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--alarm); text-transform: uppercase; letter-spacing: 0.05em;">
+          Alert-Level Anomalies ({{ scored_events|length }}) · Score ≥ {{ alert_threshold }}
+        </div>
+        <div class="triage-list" style="margin-bottom: 28px;">
+          {% for se in scored_events %}
+            <div class="t-card {% if se.score >= 60 %}t-crit{% else %}t-warn{% endif %}">
+              <div class="t-head">
+                <div class="t-who">
+                  <span class="sc {% if se.score >= 60 %}sc-danger{% else %}sc-warn{% endif %}" style="font-size:10px;">{% if se.score >= 60 %}critical{% else %}elevated{% endif %}</span>
+                  <span class="t-user">{{ se.event.username }}</span>
+                  <span class="t-time">{{ se.event.timestamp }}</span>
+                </div>
+                <div class="t-score" style="color:{% if se.score >= 60 %}var(--alarm){% else %}var(--warn){% endif %};">{{ se.score }}<sub>/100</sub></div>
               </div>
-              <div class="t-score" style="color:{% if se.score >= 60 %}var(--alarm){% else %}var(--warn){% endif %};">{{ se.score }}<sub>/100</sub></div>
-            </div>
-            <ul class="t-reasons">
-              {% for r in se.reasons %}<li class="t-reason"><span class="t-reason-marker">›</span> {{ r }}</li>{% endfor %}
-            </ul>
-            <div class="t-footer">
-              <span class="t-pill">{{ se.event.event_type }}</span>
-              {% if se.event.source_ip %}<span class="t-pill">{{ se.event.source_ip }}</span>{% endif %}
-              {% if se.enrichment and se.enrichment.enriched %}
-                <span class="t-pill">{{ se.enrichment.asn }}</span>
-                {% if se.enrichment.city != "unknown" %}<span class="t-pill">{{ se.enrichment.city }}, {{ se.enrichment.country }}</span>{% endif %}
+              <ul class="t-reasons">
+                {% for r in se.reasons %}<li class="t-reason"><span class="t-reason-marker">›</span> {{ r }}</li>{% endfor %}
+              </ul>
+              <div class="t-footer">
+                <span class="t-pill">{{ se.event.event_type }}</span>
+                {% if se.event.source_ip %}<span class="t-pill">{{ se.event.source_ip }}</span>{% endif %}
+                {% if se.enrichment and se.enrichment.enriched %}
+                  <span class="t-pill">{{ se.enrichment.asn }}</span>
+                  {% if se.enrichment.city != "unknown" %}<span class="t-pill">{{ se.enrichment.city }}, {{ se.enrichment.country }}</span>{% endif %}
+                {% endif %}
+              </div>
+              {% if se.playbook %}
+                <div class="t-playbook"><strong>Response guidance</strong><pre style="margin-top:4px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;line-height:1.5;">{{ se.playbook }}</pre></div>
               {% endif %}
             </div>
-            {% if se.playbook %}
-              <div class="t-playbook"><strong>Response guidance</strong><pre style="margin-top:4px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;line-height:1.5;">{{ se.playbook }}</pre></div>
-            {% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="panel" style="margin-bottom: 20px;">
+          <div class="empty-state" style="min-height: 140px; padding: 28px 20px;">
+            <svg class="empty-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <div class="empty-title">all events below alert threshold</div>
+            <div class="empty-desc">No events exceeded the alert threshold of {{ alert_threshold }}/100. The {{ flagged_events|length }} minor deviation{{ 's' if flagged_events|length != 1 else '' }} below triggered early detection signals.</div>
           </div>
-        {% endfor %}
-      </div>
+        </div>
+      {% endif %}
+
+      {% if flagged_events|length > 0 %}
+        <div style="margin-bottom: 12px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--t2); text-transform: uppercase; letter-spacing: 0.05em;">
+            Sub-Threshold Signals ({{ flagged_events|length }})
+          </div>
+          <span style="font-size: 11px; color: var(--t3);">score &gt; 0, below threshold ({{ alert_threshold }})</span>
+        </div>
+        <div class="triage-list">
+          {% for se in flagged_events %}
+            <div class="t-card" style="border-left: 3px solid var(--border-1);">
+              <div class="t-head">
+                <div class="t-who">
+                  <span class="sc sc-neutral" style="font-size:10px;">signal</span>
+                  <span class="t-user">{{ se.event.username }}</span>
+                  <span class="t-time">{{ se.event.timestamp }}</span>
+                </div>
+                <div class="t-score" style="color:var(--t2);">{{ se.score }}<sub>/100</sub></div>
+              </div>
+              <ul class="t-reasons">
+                {% for r in se.reasons %}<li class="t-reason"><span class="t-reason-marker">›</span> {{ r }}</li>{% endfor %}
+              </ul>
+              <div class="t-footer">
+                <span class="t-pill">{{ se.event.event_type }}</span>
+                {% if se.event.source_ip %}<span class="t-pill">{{ se.event.source_ip }}</span>{% endif %}
+              </div>
+              {% if se.playbook %}
+                <div class="t-playbook"><strong>Response guidance</strong><pre style="margin-top:4px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;line-height:1.5;">{{ se.playbook }}</pre></div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -912,6 +958,7 @@
       <div class="pills" id="filterPills">
         <button class="pill on" onclick="setFilter('all',this)">all <span class="pill-cnt">{{ filter_counts.all }}</span></button>
         <button class="pill {% if filter_counts.anomalies == 0 %}zero-count{% endif %}" onclick="setFilter('anomalies',this)">anomalies <span class="pill-cnt">{{ filter_counts.anomalies }}</span></button>
+        <button class="pill {% if filter_counts.flagged == 0 %}zero-count{% endif %}" onclick="setFilter('flagged',this)">flagged <span class="pill-cnt">{{ filter_counts.flagged }}</span></button>
         <button class="pill {% if filter_counts.login == 0 %}zero-count{% endif %}" onclick="setFilter('login',this)">logins <span class="pill-cnt">{{ filter_counts.login }}</span></button>
         <button class="pill {% if filter_counts.sudo == 0 %}zero-count{% endif %}" onclick="setFilter('sudo',this)">sudo <span class="pill-cnt">{{ filter_counts.sudo }}</span></button>
         <button class="pill {% if filter_counts.ssh == 0 %}zero-count{% endif %}" onclick="setFilter('ssh',this)">ssh/keys <span class="pill-cnt">{{ filter_counts.ssh }}</span></button>
@@ -954,9 +1001,9 @@
               <td colspan="6">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
                   <strong style="color:var(--t1);">raw log</strong>
-                  <button class="btn-sm" onclick="navigator.clipboard.writeText(`{{ se.event.raw_line }}`)">copy</button>
+                  <button class="btn-sm" onclick="copyLog({{ loop.index0 }}, this)">copy</button>
                 </div>
-                <div class="log-raw-block">{{ se.event.raw_line or '[unified log event]' }}</div>
+                <div class="log-raw-block" id="raw-log-{{ loop.index0 }}">{{ se.event.raw_line or '[unified log event]' }}</div>
                 {% if se.reasons|length > 0 %}
                   <div style="margin-top:6px;color:var(--alarm);font-size:11px;">flags: {{ se.reasons|join("; ") }}</div>
                 {% endif %}
@@ -1070,6 +1117,7 @@ function filterLogs() {
     const text = u.includes(q) || ip.includes(q) || t.includes(q) || r.includes(q) || s.toString().includes(q);
     let cat = true;
     if (curCat === 'anomalies') cat = s >= {{ alert_threshold }};
+    else if (curCat === 'flagged') cat = s > 0;
     else if (curCat === 'login') cat = t.includes('login');
     else if (curCat === 'sudo') cat = t.includes('sudo');
     else if (curCat === 'ssh') cat = t.includes('ssh') || t.includes('key');
@@ -1089,6 +1137,17 @@ function filterLogs() {
       emptyEl.style.display = 'none';
       if (wrapEl) wrapEl.style.display = '';
     }
+  }
+}
+
+function copyLog(i, btn) {
+  const el = document.getElementById('raw-log-' + i);
+  if (el) {
+    navigator.clipboard.writeText(el.innerText).then(() => {
+      const orig = btn.innerText;
+      btn.innerText = 'copied!';
+      setTimeout(() => { btn.innerText = orig; }, 1500);
+    });
   }
 }
 </script>

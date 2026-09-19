@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from engine.models import ScoredEvent
 from engine.baseline import Baseline
+from engine.playbooks import get_playbook
 
 
 def generate_report(
@@ -105,45 +106,68 @@ def generate_report(
                 else:
                     setattr(self, k, v)
 
-    # 1. Alert events (What's Important / Critical Triage)
-    alert_events_raw = [se for se in scored_events if se.score >= alert_threshold]
-
     # 2. All events (Full Log Stream — includes score-0 events)
-    # Use all_events if provided, otherwise fall back to scored_events
-    full_events = all_events if all_events is not None else scored_events
+    # Prefer persisted history from baseline event_log if available, else use passed events
+    logged_events = baseline.get_all_logged_events(limit=1000) if hasattr(baseline, "get_all_logged_events") else []
     template_all_events = []
     user_stats = {}
     event_type_counts = {}
     hour_histogram = [0] * 24
 
-    for se in full_events:
-        obj = _Obj({
-            "score": se.score,
-            "reasons": se.reasons,
-            "event": _Obj(se.event.to_dict()),
-            "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
-        })
-        template_all_events.append(obj)
+    if logged_events:
+        for le in logged_events:
+            sigs = le.get("signals", [])
+            pb = get_playbook(sigs, user=le["username"], ip=le.get("source_ip") or "unknown") if sigs else None
+            obj = _Obj({
+                "score": le["score"],
+                "reasons": le["reasons"],
+                "event": _Obj({
+                    "timestamp": le["timestamp"],
+                    "username": le["username"],
+                    "event_type": le["event_type"],
+                    "source_ip": le["source_ip"],
+                    "raw_line": le["raw_line"],
+                }),
+                "enrichment": None,
+                "playbook": pb,
+            })
+            template_all_events.append(obj)
+    else:
+        full_events = all_events if all_events is not None else scored_events
+        for se in full_events:
+            sigs = getattr(se, "signals", [])
+            pb = get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown") if sigs else None
+            obj = _Obj({
+                "score": se.score,
+                "reasons": se.reasons,
+                "event": _Obj(se.event.to_dict()),
+                "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
+                "playbook": pb,
+            })
+            template_all_events.append(obj)
 
-        u = se.event.username or "unknown"
+    for obj in template_all_events:
+        u = obj.event.username or "unknown"
         if u not in user_stats:
             user_stats[u] = {"count": 0, "max_score": 0, "anomalies": 0}
         user_stats[u]["count"] += 1
-        user_stats[u]["max_score"] = max(user_stats[u]["max_score"], se.score)
-        if se.score >= alert_threshold:
+        user_stats[u]["max_score"] = max(user_stats[u]["max_score"], obj.score)
+        if obj.score >= alert_threshold:
             user_stats[u]["anomalies"] += 1
 
-        etype = se.event.event_type
+        etype = obj.event.event_type
         event_type_counts[etype] = event_type_counts.get(etype, 0) + 1
 
         try:
-            h = datetime.fromisoformat(se.event.timestamp).hour
+            h = datetime.fromisoformat(obj.event.timestamp).hour
             hour_histogram[h] += 1
         except Exception:
             pass
 
     template_alert_events = [se for se in template_all_events if se.score >= alert_threshold]
-    max_score = max((se.score for se in scored_events), default=0)
+    template_flagged_events = [se for se in template_all_events if 0 < se.score < alert_threshold]
+    max_score = max((se.score for se in template_all_events), default=0)
+    anomaly_count = len(template_alert_events)
 
     login_count = sum(c for k, c in event_type_counts.items() if "login" in k.lower())
     sudo_count = sum(c for k, c in event_type_counts.items() if "sudo" in k.lower())
@@ -151,6 +175,7 @@ def generate_report(
     filter_counts = {
         "all": len(template_all_events),
         "anomalies": anomaly_count,
+        "flagged": len(template_flagged_events),
         "login": login_count,
         "sudo": sudo_count,
         "ssh": ssh_count,
@@ -184,7 +209,8 @@ def generate_report(
         event_type_counts=event_type_counts,
         filter_counts=_Obj(filter_counts),
         hour_histogram=hour_histogram,
-        scored_events=template_alert_events,       # Backwards compatible: alert events for "What's Important"
+        scored_events=template_alert_events,       # Alert events for "What's Important"
+        flagged_events=template_flagged_events,     # Sub-threshold scored events
         all_events=template_all_events,            # Full list for "Systematic Log Stream"
         integrity_results=[_Obj(ir.to_dict()) for ir in integrity_list],
         integrity_alerts=integrity_alerts,

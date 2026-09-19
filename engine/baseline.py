@@ -299,6 +299,37 @@ class Baseline:
             })
         return results
 
+    def get_all_logged_events(self, limit: int = 1000) -> list[dict]:
+        """Fetch all logged events from event_log ordered by timestamp DESC."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT timestamp, event_type, username, source_ip, score, reasons, raw_line, signals_json "
+                "FROM event_log "
+                "ORDER BY timestamp DESC, id DESC "
+                "LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        results = []
+        for r in rows:
+            try:
+                sig_list = json.loads(r["signals_json"]) if r["signals_json"] else []
+            except (json.JSONDecodeError, TypeError):
+                sig_list = []
+            reasons_list = [s.strip() for s in r["reasons"].split(";")] if r["reasons"] else []
+            results.append({
+                "timestamp": r["timestamp"],
+                "event_type": r["event_type"],
+                "username": r["username"],
+                "source_ip": r["source_ip"],
+                "score": r["score"],
+                "reasons": reasons_list,
+                "raw_line": r["raw_line"] or "",
+                "signals": sig_list,
+            })
+        return results
+
     # ── Updates (after scoring, update the baseline) ───────────────
 
     def record_event(self, event: AuthEvent,
