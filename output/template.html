@@ -265,8 +265,9 @@
     font-family: var(--mono);
     font-size: 26px;
     font-weight: 800;
-    color: {% if anomaly_count > 0 %}var(--alarm){% else %}var(--t1){% endif %};
+    color: var(--t1);
   }
+  .hero-anom-count.has-alarm { color: var(--alarm); }
 
   .hero-context {
     font-size: 12px;
@@ -597,6 +598,19 @@
   .baseline-item:last-child { border-bottom: none; }
   .baseline-label { color: var(--t3); }
   .baseline-val { font-family: var(--mono); font-weight: 500; color: var(--t2); }
+  .baseline-val.val-ok { color: var(--ok); }
+  .baseline-val.val-warn { color: var(--warn); }
+
+  .dot-baseline {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    margin-right: 4px;
+  }
+  .dot-baseline.dot-ok { background: var(--ok); }
+  .dot-baseline.dot-warn { background: var(--warn); }
 
   .warmup-group {
     padding: 12px 0 10px;
@@ -624,6 +638,12 @@
 
   .progress-track { height: 6px; background: var(--bg-0); border: 1px solid var(--border-0); border-radius: 99px; overflow: hidden; margin: 4px 0; }
   .progress-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+  .progress-fill.fill-ok { background: var(--ok); }
+  .progress-fill.fill-warn { background: var(--warn); }
+  .progress-fill.fill-muted { background: var(--t3); }
+
+  .t-score.score-alarm { color: var(--alarm); }
+  .t-score.score-warn { color: var(--warn); }
 
   .warmup-copy {
     font-size: 11px;
@@ -895,7 +915,7 @@
   ::-webkit-scrollbar-thumb { background: var(--border-1); border-radius: 99px; }
 </style>
 </head>
-<body>
+<body data-alert-threshold="{{ alert_threshold }}">
 
 <div class="shell">
 
@@ -934,7 +954,8 @@
           <circle class="gauge-track" cx="60" cy="60" r="50" />
           <circle class="gauge-val {% if max_score >= 60 %}gv-alarm{% elif max_score >= 40 %}gv-warn{% elif max_score > 0 %}gv-notice{% else %}gv-nominal{% endif %}"
                   cx="60" cy="60" r="50"
-                  style="stroke-dasharray: 314.16; stroke-dashoffset: {{ (314.16 * (1 - (max_score / 100)))|round(1) }};" />
+                  stroke-dasharray="314.16"
+                  stroke-dashoffset="{{ (314.16 * (1 - (max_score / 100)))|round(1) }}" />
         </svg>
         <div class="gauge-inner">
           <span class="gauge-score">{{ max_score }}</span>
@@ -944,7 +965,7 @@
       <div class="hero-meta-col">
         <div class="hero-subheading">peak threat score · {{ max_score }}/100</div>
         <div class="hero-headline">
-          <span class="hero-anom-count">{{ anomaly_count }}</span>
+          <span class="hero-anom-count {% if anomaly_count > 0 %}has-alarm{% endif %}">{{ anomaly_count }}</span>
           <span>anomal{% if anomaly_count == 1 %}y{% else %}ies{% endif %} detected</span>
           {% if anomaly_count == 0 %}
             <span class="sc sc-ok" style="font-size:10px;padding:2px 6px;">nominal</span>
@@ -1088,7 +1109,7 @@
                   </div>
 
                   <!-- Conditional Bar Color: danger ONLY if score >= threshold, else neutral -->
-                  <div class="bar {% if h.is_anomaly %}bar-danger{% elif is_active %}bar-neutral{% else %}bar-empty{% endif %}" style="height: {{ [pct, 2]|max if is_active else 2 }}%;"></div>
+                  <div class="bar {% if h.is_anomaly %}bar-danger{% elif is_active %}bar-neutral{% else %}bar-empty{% endif %}" {{ 'style="height: %d%%;"'|format([pct, 2]|max if is_active else 2) }}></div>
                   {% if h.hour % 3 == 0 %}
                     <span class="bar-lbl">{{ '%02d'|format(h.hour) }}</span>
                   {% else %}
@@ -1108,8 +1129,8 @@
         </div>
         <div class="baseline-item">
           <span class="baseline-label">Status</span>
-          <span class="baseline-val" style="color: {% if warmup_info.warmup_complete %}var(--ok){% else %}var(--warn){% endif %}">
-            <span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:{% if warmup_info.warmup_complete %}var(--ok){% else %}var(--warn){% endif %};vertical-align:1px;margin-right:4px;"></span>
+          <span class="baseline-val {% if warmup_info.warmup_complete %}val-ok{% else %}val-warn{% endif %}">
+            <span class="dot-baseline {% if warmup_info.warmup_complete %}dot-ok{% else %}dot-warn{% endif %}"></span>
             {% if warmup_info.warmup_complete %}Active (Profiled){% else %}Learning Phase{% endif %}
           </span>
         </div>
@@ -1125,7 +1146,7 @@
               </span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill" style="width: {{ [((warmup_info.events_processed / warmup_info.min_events) * 100)|round|int, 100]|min }}%; background: {% if warmup_info.event_quota_met %}var(--ok){% else %}var(--warn){% endif %};"></div>
+              <div class="progress-fill {% if warmup_info.event_quota_met %}fill-ok{% else %}fill-warn{% endif %}" {{ 'style="width: %d%%;"'|format([((warmup_info.events_processed / warmup_info.min_events) * 100)|round|int, 100]|min) }}></div>
             </div>
           </div>
 
@@ -1138,7 +1159,8 @@
               </span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill" style="width: {% if warmup_info.time_quota_met %}100{% elif warmup_info.days_elapsed > 0 %}{{ ((warmup_info.days_elapsed / warmup_info.days_total) * 100)|round|int }}{% else %}4{% endif %}%; background: {% if warmup_info.time_quota_met %}var(--ok){% else %}var(--t3){% endif %};"></div>
+              {% set days_w = 100 if warmup_info.time_quota_met else (((warmup_info.days_elapsed / warmup_info.days_total) * 100)|round|int if warmup_info.days_elapsed > 0 else 4) %}
+              <div class="progress-fill {% if warmup_info.time_quota_met %}fill-ok{% else %}fill-muted{% endif %}" {{ 'style="width: %d%%;"'|format(days_w) }}></div>
             </div>
           </div>
 
@@ -1218,7 +1240,7 @@
                   <span class="t-user">{{ se.event.username }}</span>
                   <span class="t-time">{{ se.event.timestamp }}</span>
                 </div>
-                <div class="t-score" style="color:{% if se.score >= 60 %}var(--alarm){% else %}var(--warn){% endif %};">{{ se.score }}<sub>/100</sub></div>
+                <div class="t-score {% if se.score >= 60 %}score-alarm{% else %}score-warn{% endif %}">{{ se.score }}<sub>/100</sub></div>
               </div>
               <ul class="t-reasons">
                 {% for r in se.reasons %}<li class="t-reason"><span class="t-reason-marker">›</span> {{ r }}</li>{% endfor %}
@@ -1329,13 +1351,13 @@
                 {% endif %}
               </td>
               <td><span class="sc {% if se.score >= 40 %}sc-danger{% else %}sc-neutral{% endif %}">{{ se.score }}</span></td>
-              <td><button class="btn-sm" onclick="toggleDraw({{ loop.index0 }})">inspect</button></td>
+              <td><button class="btn-sm" data-idx="{{ loop.index0 }}" onclick="toggleDraw(this.dataset.idx)">inspect</button></td>
             </tr>
             <tr id="draw-{{ loop.index0 }}" class="log-drawer">
               <td colspan="6">
                 <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
                   <strong style="color:var(--t1);">raw log</strong>
-                  <button class="btn-sm" onclick="copyLog({{ loop.index0 }}, this)">copy</button>
+                  <button class="btn-sm" data-idx="{{ loop.index0 }}" onclick="copyLog(this.dataset.idx, this)">copy</button>
                 </div>
                 <div class="log-raw-block" id="raw-log-{{ loop.index0 }}">{{ se.event.raw_line or '[unified log event]' }}</div>
                 {% if se.reasons|length > 0 %}
@@ -1450,7 +1472,8 @@ function filterLogs() {
     const s = parseInt(row.dataset.score || '0'), r = row.dataset.raw || '';
     const text = u.includes(q) || ip.includes(q) || t.includes(q) || r.includes(q) || s.toString().includes(q);
     let cat = true;
-    if (curCat === 'anomalies') cat = s >= {{ alert_threshold }};
+    const alertThreshold = parseInt(document.body.dataset.alertThreshold || '40', 10);
+    if (curCat === 'anomalies') cat = s >= alertThreshold;
     else if (curCat === 'flagged') cat = s > 0;
     else if (curCat === 'login') cat = t.includes('login');
     else if (curCat === 'sudo') cat = t.includes('sudo');
