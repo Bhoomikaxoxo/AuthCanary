@@ -1109,7 +1109,7 @@
                   </div>
 
                   <!-- Conditional Bar Color: danger ONLY if score >= threshold, else neutral -->
-                  <div class="bar {% if h.is_anomaly %}bar-danger{% elif is_active %}bar-neutral{% else %}bar-empty{% endif %}" {{ 'style="height: %d%%;"'|format([pct, 2]|max if is_active else 2) }}></div>
+                  <div class="bar {% if h.is_anomaly %}bar-danger{% elif is_active %}bar-neutral{% else %}bar-empty{% endif %}" data-height="{{ [pct, 2]|max if is_active else 2 }}%"></div>
                   {% if h.hour % 3 == 0 %}
                     <span class="bar-lbl">{{ '%02d'|format(h.hour) }}</span>
                   {% else %}
@@ -1146,7 +1146,7 @@
               </span>
             </div>
             <div class="progress-track">
-              <div class="progress-fill {% if warmup_info.event_quota_met %}fill-ok{% else %}fill-warn{% endif %}" {{ 'style="width: %d%%;"'|format([((warmup_info.events_processed / warmup_info.min_events) * 100)|round|int, 100]|min) }}></div>
+              <div class="progress-fill {% if warmup_info.event_quota_met %}fill-ok{% else %}fill-warn{% endif %}" data-width="{{ [((warmup_info.events_processed / warmup_info.min_events) * 100)|round|int, 100]|min }}%"></div>
             </div>
           </div>
 
@@ -1160,7 +1160,7 @@
             </div>
             <div class="progress-track">
               {% set days_w = 100 if warmup_info.time_quota_met else (((warmup_info.days_elapsed / warmup_info.days_total) * 100)|round|int if warmup_info.days_elapsed > 0 else 4) %}
-              <div class="progress-fill {% if warmup_info.time_quota_met %}fill-ok{% else %}fill-muted{% endif %}" {{ 'style="width: %d%%;"'|format(days_w) }}></div>
+              <div class="progress-fill {% if warmup_info.time_quota_met %}fill-ok{% else %}fill-muted{% endif %}" data-width="{{ days_w }}%"></div>
             </div>
           </div>
 
@@ -1442,6 +1442,10 @@
 </div>
 
 <script>
+// Apply dynamic data-driven dimensions
+document.querySelectorAll('[data-height]').forEach(el => { el.style.height = el.dataset.height; });
+document.querySelectorAll('[data-width]').forEach(el => { el.style.width = el.dataset.width; });
+
 function switchTab(id) {
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
