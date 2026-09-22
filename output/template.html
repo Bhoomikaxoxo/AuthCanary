@@ -712,7 +712,12 @@
   let filterNovelOnly = false;
   let activeProcess = 'all';
   let eventSource = null;
-  let counts = { all: {{ all_events|length }}, sudo: 0, authd: 0, sshd: 0 };
+  let counts = {
+    all: parseInt(document.getElementById('countAll')?.innerText || '0', 10),
+    sudo: parseInt(document.getElementById('countSudo')?.innerText || '0', 10),
+    authd: parseInt(document.getElementById('countAuthd')?.innerText || '0', 10),
+    sshd: parseInt(document.getElementById('countSshd')?.innerText || '0', 10)
+  };
 
   // ── FILTERING ────────────────────────────────────────────────
   function applyFilters() {

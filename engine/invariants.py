@@ -11,6 +11,7 @@ explicit threat classifications:
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 from engine.models import ScoredEvent
 from engine.playbooks import get_playbook
@@ -102,8 +103,13 @@ class InvariantEngine:
             # Check for burst / brute-force
             recent_failures = 0
             if hasattr(baseline, "get_recent_failures") and event.source_ip:
+                try:
+                    event_dt = datetime.fromisoformat(event.timestamp)
+                except (ValueError, TypeError):
+                    event_dt = datetime.now()
+                since_ts = (event_dt - timedelta(minutes=15)).isoformat()
                 recent_failures = baseline.get_recent_failures(
-                    user, event.source_ip, window_start=None
+                    user, event.source_ip, since=since_ts
                 )
             if recent_failures >= 3:
                 severity = "WARNING"
