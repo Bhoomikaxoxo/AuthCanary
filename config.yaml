@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────
 # AuthCanary Configuration
-# Every number the engine uses traces back to this file.
+# Real-time macOS System Log Activity Monitor & Invariant Triage
 # ─────────────────────────────────────────────────────────────────
 
 log_source:
@@ -8,32 +8,28 @@ log_source:
   # Or set an explicit path: "/var/log/auth.log", "journald", etc.
   path: "auto"
 
-warmup:
-  days: 7              # Minimum calendar days before alerting begins
-  min_events: 50       # Minimum total events before alerting begins
-  # Both conditions must be met. During warm-up, events are ingested
-  # and the baseline learns — it just doesn't generate alerts.
+monitor:
+  # Processes actively monitored in the Activity Monitor view
+  processes:
+    - sudo
+    - authd
+    - sshd
+    - opendirectoryd
+    - tcc
+  live_stream: true
+  stream_poll_sec: 2
 
-scoring:
-  weights:
-    new_asn: 30
-    new_ip_known_asn: 15
-    new_ip_new_asn: 35
-    unusual_hour: 20
-    new_ssh_key: 40
-    first_sudo: 30
-    brute_force_pattern: 35
-  z_score_threshold: 2.0   # For unusual-hour detection
-  alert_threshold: 40      # Score ≥ this = alert-level event
-  brute_force_window_min: 10   # Failed logins within this window (minutes)
-  brute_force_success_min: 5   # Success must follow within this window (minutes)
-  brute_force_min_failures: 3  # Minimum failures to trigger pattern
-  always_alert:            # These signal types always alert regardless of threshold
-    - new_ssh_key
+invariants:
+  alert_severities:
+    - CRITICAL
+    - WARNING
+  always_alert:
+    - UNAUTHORIZED_KEY_ADD
+    - KILL_CHAIN_ESCALATION
+    - CONFIG_DRIFT
 
 correlation:
   sequence_window_min: 15     # Lookback window for multi-stage sequence correlation
-  sequence_multiplier: 1.5    # Multiplier applied when correlated attack sequences are detected
 
 integrity:
   enabled: true
@@ -45,7 +41,7 @@ integrity:
 
 enrichment:
   enabled: true
-  provider: "ip-api"       # Pluggable: "ip-api" | future paid providers
+  provider: "ip-api"
   cache_ttl_days: 30
   rate_limit_per_min: 45
 

@@ -321,6 +321,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
             self.log_bin, "show",
             "--predicate", predicate,
             "--style", "json",
+            "--info",
         ]
 
         if cursor.last_timestamp:
@@ -341,7 +342,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
             except Exception:
                 cmd += ["--last", "48h"]
         else:
-            cmd += ["--last", "7d"]
+            cmd += ["--last", "24h"]
 
         try:
             result = subprocess.run(
@@ -361,15 +362,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 entries = []
 
             for entry in entries:
-                msg = entry.get("eventMessage", "")
-                raw_ts = entry.get("timestamp", datetime.now().isoformat())
-                try:
-                    # Normalize timestamp to ISO string
-                    dt_entry = datetime.fromisoformat(raw_ts)
-                    ts = dt_entry.strftime("%Y-%m-%dT%H:%M:%S")
-                except Exception:
-                    ts = raw_ts.replace(" ", "T")
-                ev = self._parse_message(msg, ts, json.dumps(entry))
+                ev = self.parse_entry(entry)
                 if ev:
                     events.append(ev)
 
@@ -409,7 +402,6 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 user, tty, month, day, time_str = m.groups()
                 try:
                     dt = datetime.strptime(f"{current_year} {month} {day} {time_str}", "%Y %b %d %H:%M")
-                    # If parsed date is in future, it was from previous year
                     if dt > datetime.now():
                         dt = dt.replace(year=current_year - 1)
                     events.append(AuthEvent(
@@ -419,13 +411,39 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                         source_ip="127.0.0.1",
                         auth_method="password",
                         raw_line=line,
+                        process="login",
+                        pid=0,
+                        subsystem="com.apple.loginwindow",
+                        category="session",
                     ))
                 except Exception:
                     continue
         return events
 
-    def _parse_message(self, msg: str, ts: str,
-                       raw_line: str) -> AuthEvent | None:
+    @classmethod
+    def parse_entry(cls, entry: dict) -> AuthEvent | None:
+        """Parse a single JSON entry dictionary from /usr/bin/log into an AuthEvent."""
+        msg = entry.get("eventMessage", "")
+        if not msg or msg == "<private>":
+            return None
+
+        raw_ts = entry.get("timestamp", datetime.now().isoformat())
+        try:
+            dt_entry = datetime.fromisoformat(raw_ts)
+            ts = dt_entry.strftime("%Y-%m-%dT%H:%M:%S")
+        except Exception:
+            ts = raw_ts.replace(" ", "T")[:19]
+
+        proc_path = entry.get("processImagePath", "")
+        proc_name = proc_path.split("/")[-1] if proc_path else entry.get("senderImagePath", "").split("/")[-1]
+        if not proc_name:
+            proc_name = "system"
+
+        pid = entry.get("processID", 0)
+        subsystem = entry.get("subsystem", "")
+        category = entry.get("category", "")
+        raw_line = json.dumps(entry)
+
         # 1. SSH login accepted / failed
         m = re.search(
             r"(Accepted|Failed)\s+(password|publickey)\s+for\s+"
@@ -436,38 +454,15 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 event_type="login_success" if m.group(1) == "Accepted" else "login_failure",
                 username=m.group(3),
                 source_ip=m.group(4),
-                auth_method=m.group(2),  # type: ignore[arg-type]
+                auth_method=m.group(2),
                 raw_line=raw_line,
+                process="sshd",
+                pid=pid,
+                subsystem=subsystem or "com.apple.sshd",
+                category=category or "authentication",
             )
 
-        # 2. macOS screen unlock / authorization (authd)
-        m = re.search(r"authenticated as user (\S+) \(UID \d+\) for right '([^']+)'", msg)
-        if m:
-            return AuthEvent(
-                timestamp=ts,
-                event_type="login_success",
-                username=m.group(1),
-                source_ip="127.0.0.1",
-                auth_method="password",
-                raw_line=raw_line,
-            )
-
-        # 3. macOS auth failed
-        if "Failed authorizing right" in msg:
-            m = re.search(r"for user\s+(\S+)", msg)
-            user = m.group(1) if m else os.environ.get("USER", "unknown")
-            return AuthEvent(
-                timestamp=ts,
-                event_type="login_failure",
-                username=user,
-                source_ip="127.0.0.1",
-                auth_method="password",
-                raw_line=raw_line,
-            )
-
-        # 4. sudo execution (supports both macOS `/usr/bin/sudo` and standard Linux syslog)
-        # Format 1: "    username : TTY=ttys000 ; ... ; COMMAND=..."
-        # Format 2: "sudo:   username : TTY=... ; COMMAND=..."
+        # 2. sudo execution
         m = re.search(
             r"(?:sudo:\s*)?(\S+)\s*:\s*(?:(?P<failed>a password is required|1 incorrect password attempt|conversational failed|auth could not identify password for|incorrect password)\s*;\s*)?TTY=\S+\s*;\s*PWD=.*?;\s*USER=(\S+)\s*;\s*COMMAND=(.*)",
             msg,
@@ -475,6 +470,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         if m:
             user = m.group(1)
             is_failed = bool(m.group("failed"))
+            cmd = m.group(4).strip() if len(m.groups()) >= 4 and m.group(4) else ""
             return AuthEvent(
                 timestamp=ts,
                 event_type="login_failure" if is_failed else "sudo_used",
@@ -482,6 +478,67 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 source_ip="127.0.0.1",
                 auth_method="sudo",
                 raw_line=raw_line,
+                process="sudo",
+                pid=pid,
+                subsystem=subsystem or "com.apple.sudo",
+                category=category or "privilege",
+                command=cmd,
+            )
+
+        # 3. macOS authorization right granted (authd)
+        m = re.search(r"authenticated as user (\S+) \(UID \d+\) for right '([^']+)'", msg)
+        if m:
+            right = m.group(2)
+            method = "touch_id" if "biometry" in msg.lower() or "touchid" in msg.lower() else "password"
+            return AuthEvent(
+                timestamp=ts,
+                event_type="login_success",
+                username=m.group(1),
+                source_ip="127.0.0.1",
+                auth_method=method,
+                raw_line=raw_line,
+                process="authd",
+                pid=pid,
+                subsystem=subsystem or "com.apple.Authorization",
+                category=category or "authd",
+                command=right,
+            )
+
+        # 4. macOS authorization failure
+        if "Failed authorizing right" in msg or "Failed to authenticate" in msg:
+            m = re.search(r"for user\s+(\S+)", msg)
+            user = m.group(1) if m else os.environ.get("USER", "system")
+            return AuthEvent(
+                timestamp=ts,
+                event_type="login_failure",
+                username=user,
+                source_ip="127.0.0.1",
+                auth_method="system",
+                raw_line=raw_line,
+                process=proc_name or "authd",
+                pid=pid,
+                subsystem=subsystem or "com.apple.Authorization",
+                category=category or "authd",
+            )
+
+        # 5. Generic successful authorization right evaluation
+        if "Succeeded authorizing right" in msg:
+            m = re.search(r"Succeeded authorizing right '([^']+)' by client '([^']+)'", msg)
+            right = m.group(1) if m else ""
+            client = m.group(2).split("/")[-1] if m else proc_name
+            user = os.environ.get("USER", "system")
+            return AuthEvent(
+                timestamp=ts,
+                event_type="system_auth",
+                username=user,
+                source_ip="127.0.0.1",
+                auth_method="system",
+                raw_line=raw_line,
+                process=client or proc_name,
+                pid=pid,
+                subsystem=subsystem or "com.apple.Authorization",
+                category=category or "authorization",
+                command=right,
             )
 
         return None

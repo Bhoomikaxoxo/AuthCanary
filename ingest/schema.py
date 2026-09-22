@@ -17,9 +17,12 @@ EventType = Literal[
     "sudo_used",
     "ssh_key_added",
     "new_user_created",
+    "system_auth",
+    "privilege_elevation",
+    "tcc_access",
 ]
 
-AuthMethod = Literal["password", "publickey", "sudo"]
+AuthMethod = Literal["password", "publickey", "sudo", "touch_id", "system", "unknown"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,11 +30,16 @@ class AuthEvent:
     """A single normalized authentication event."""
 
     timestamp: str  # ISO 8601
-    event_type: EventType
+    event_type: EventType | str
     username: str
     source_ip: str | None = None
-    auth_method: AuthMethod | None = None
+    auth_method: AuthMethod | str | None = None
     raw_line: str = ""
+    process: str = "system"
+    pid: int = 0
+    subsystem: str = ""
+    category: str = ""
+    command: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

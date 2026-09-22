@@ -117,16 +117,24 @@ def generate_report(
     if logged_events:
         for le in logged_events:
             sigs = le.get("signals", [])
-            pb = get_playbook(sigs, user=le["username"], ip=le.get("source_ip") or "unknown") if sigs else None
+            invs = le.get("invariants", [])
+            pb = get_playbook(sigs or [i.lower() for i in invs], user=le["username"], ip=le.get("source_ip") or "unknown")
             obj = _Obj({
                 "score": le["score"],
                 "reasons": le["reasons"],
+                "severity": le.get("severity", "INFO"),
+                "invariants": invs,
+                "process": le.get("process", "system"),
+                "is_novel": le.get("is_novel", False),
+                "command": le.get("command", ""),
                 "event": _Obj({
                     "timestamp": le["timestamp"],
                     "username": le["username"],
                     "event_type": le["event_type"],
                     "source_ip": le["source_ip"],
                     "raw_line": le["raw_line"],
+                    "process": le.get("process", "system"),
+                    "command": le.get("command", ""),
                 }),
                 "enrichment": None,
                 "playbook": pb,
@@ -136,10 +144,16 @@ def generate_report(
         full_events = all_events if all_events is not None else scored_events
         for se in full_events:
             sigs = getattr(se, "signals", [])
-            pb = get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown") if sigs else None
+            invs = getattr(se, "invariants", [])
+            pb = getattr(se, "playbook", "") or get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown")
             obj = _Obj({
                 "score": se.score,
                 "reasons": se.reasons,
+                "severity": getattr(se, "severity", "INFO"),
+                "invariants": invs,
+                "process": getattr(se.event, "process", "system"),
+                "is_novel": getattr(se, "is_novel", False),
+                "command": getattr(se.event, "command", ""),
                 "event": _Obj(se.event.to_dict()),
                 "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
                 "playbook": pb,
@@ -243,6 +257,7 @@ def generate_report(
         threat_label = "All Systems Nominal"
 
     max_h = max(max(hour_histogram, default=0), 1)
+    process_stats = baseline.get_process_stats() if hasattr(baseline, "get_process_stats") else {}
 
     html_content = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -256,6 +271,7 @@ def generate_report(
         threat_label=threat_label,
         host_info=_Obj(host_info),
         stats=_Obj(stats),
+        process_stats=process_stats,
         user_stats={k: _Obj(v) for k, v in user_stats.items()},
         event_type_counts=event_type_counts,
         filter_counts=_Obj(filter_counts),

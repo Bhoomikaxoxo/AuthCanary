@@ -84,6 +84,14 @@ class Baseline:
                     count       INTEGER DEFAULT 1
                 );
 
+                CREATE TABLE IF NOT EXISTS seen_sudo_commands (
+                    username    TEXT,
+                    command     TEXT,
+                    first_seen  TEXT,
+                    count       INTEGER DEFAULT 1,
+                    PRIMARY KEY (username, command)
+                );
+
                 CREATE TABLE IF NOT EXISTS event_log (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp   TEXT,
@@ -93,7 +101,12 @@ class Baseline:
                     score       INTEGER,
                     reasons     TEXT,
                     raw_line    TEXT,
-                    signals_json TEXT DEFAULT '[]'
+                    signals_json TEXT DEFAULT '[]',
+                    severity    TEXT DEFAULT 'INFO',
+                    invariants_json TEXT DEFAULT '[]',
+                    process     TEXT DEFAULT 'system',
+                    is_novel    INTEGER DEFAULT 0,
+                    command     TEXT DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS file_integrity_hashes (
@@ -122,11 +135,19 @@ class Baseline:
                 );
             """)
 
-            # Dynamic migration: ensure event_log has signals_json if pre-existing
+            # Dynamic migrations: ensure event_log has all modern columns
             cursor = conn.execute("PRAGMA table_info(event_log)")
             columns = [row[1] for row in cursor.fetchall()]
-            if "signals_json" not in columns:
-                conn.execute("ALTER TABLE event_log ADD COLUMN signals_json TEXT DEFAULT '[]'")
+            for col_name, col_def in [
+                ("signals_json", "TEXT DEFAULT '[]'"),
+                ("severity", "TEXT DEFAULT 'INFO'"),
+                ("invariants_json", "TEXT DEFAULT '[]'"),
+                ("process", "TEXT DEFAULT 'system'"),
+                ("is_novel", "INTEGER DEFAULT 0"),
+                ("command", "TEXT DEFAULT ''"),
+            ]:
+                if col_name not in columns:
+                    conn.execute(f"ALTER TABLE event_log ADD COLUMN {col_name} {col_def}")
 
             # Ensure warmup_state has a row
             row = conn.execute("SELECT id FROM warmup_state").fetchone()
@@ -267,6 +288,51 @@ class Baseline:
             ).fetchone()
         return row is not None
 
+    def is_sudo_command_known(self, username: str, command: str) -> bool:
+        """Check if this user has previously executed this specific sudo command."""
+        if not command:
+            return True
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM seen_sudo_commands WHERE username = ? AND command = ?",
+                (username, command),
+            ).fetchone()
+        return row is not None
+
+    def record_sudo_command(self, username: str, command: str) -> None:
+        """Record a sudo command in the baseline ledger."""
+        if not command:
+            return
+        now = datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO seen_sudo_commands (username, command, first_seen, count) "
+                "VALUES (?, ?, ?, 1) "
+                "ON CONFLICT(username, command) DO UPDATE SET count = count + 1",
+                (username, command, now),
+            )
+
+    def get_process_stats(self) -> dict[str, dict]:
+        """Return event count, warning count, and critical count by process."""
+        stats: dict[str, dict] = {}
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT COALESCE(process, 'system') as proc, severity, COUNT(*) as cnt "
+                "FROM event_log GROUP BY proc, severity"
+            ).fetchall()
+        for r in rows:
+            proc = r["proc"] or "system"
+            if proc not in stats:
+                stats[proc] = {"count": 0, "warnings": 0, "critical": 0}
+            cnt = r["cnt"]
+            stats[proc]["count"] += cnt
+            if r["severity"] in ("WARNING", "CRITICAL"):
+                stats[proc]["warnings"] += cnt
+            if r["severity"] == "CRITICAL":
+                stats[proc]["critical"] += cnt
+        return stats
+
     def get_hour_histogram(self, username: str) -> list[int]:
         """Return 24-element list of login counts per hour for this user."""
         with sqlite3.connect(self.db_path) as conn:
@@ -341,7 +407,8 @@ class Baseline:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT timestamp, event_type, username, source_ip, score, reasons, raw_line, signals_json "
+                "SELECT timestamp, event_type, username, source_ip, score, reasons, raw_line, "
+                "signals_json, severity, invariants_json, process, is_novel, command "
                 "FROM event_log "
                 "ORDER BY timestamp DESC, id DESC "
                 "LIMIT ?",
@@ -354,6 +421,10 @@ class Baseline:
                 sig_list = json.loads(r["signals_json"]) if r["signals_json"] else []
             except (json.JSONDecodeError, TypeError):
                 sig_list = []
+            try:
+                inv_list = json.loads(r["invariants_json"]) if r["invariants_json"] else []
+            except (json.JSONDecodeError, TypeError):
+                inv_list = []
             reasons_list = [s.strip() for s in r["reasons"].split(";")] if r["reasons"] else []
             results.append({
                 "timestamp": r["timestamp"],
@@ -364,27 +435,44 @@ class Baseline:
                 "reasons": reasons_list,
                 "raw_line": r["raw_line"] or "",
                 "signals": sig_list,
+                "severity": r["severity"] or "INFO",
+                "invariants": inv_list,
+                "process": r["process"] or "system",
+                "is_novel": bool(r["is_novel"]),
+                "command": r["command"] or "",
             })
         return results
 
     # ── Updates (after scoring, update the baseline) ───────────────
 
     def record_event(self, event: AuthEvent,
-                     enrichment: EnrichmentResult | None,
-                     score: int, reasons: list[str],
-                     signals: list[str] | None = None) -> None:
+                     enrichment: EnrichmentResult | None = None,
+                     score: int = 0,
+                     reasons: list[str] | None = None,
+                     signals: list[str] | None = None,
+                     severity: str = "INFO",
+                     invariants: list[str] | None = None,
+                     is_novel: bool = False,
+                     command: str = "",
+                     process: str = "") -> None:
         """Record a processed event and update all baseline tables."""
         now = datetime.now().isoformat()
         signals_str = json.dumps(signals or [])
+        invariants_str = json.dumps(invariants or [])
+        effective_cmd = command or getattr(event, "command", "") or ""
+        effective_proc = process or getattr(event, "process", "") or "system"
+        reasons_list = reasons or []
 
         with sqlite3.connect(self.db_path) as conn:
-            # Log the event with structured signals
+            # Log the event with structured signals and invariants
             conn.execute(
                 "INSERT INTO event_log "
-                "(timestamp, event_type, username, source_ip, score, reasons, raw_line, signals_json) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(timestamp, event_type, username, source_ip, score, reasons, raw_line, "
+                "signals_json, severity, invariants_json, process, is_novel, command) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (event.timestamp, event.event_type, event.username,
-                 event.source_ip, score, "; ".join(reasons), event.raw_line, signals_str),
+                 event.source_ip, score, "; ".join(reasons_list), event.raw_line,
+                 signals_str, severity, invariants_str, effective_proc, int(is_novel), effective_cmd),
             )
 
             # Update hour histogram for logins
@@ -423,7 +511,6 @@ class Baseline:
 
             # Update SSH keys
             if event.event_type == "ssh_key_added":
-                # Extract fingerprint from raw line if available
                 fp = self._extract_fingerprint(event.raw_line)
                 if fp:
                     conn.execute(
@@ -432,14 +519,21 @@ class Baseline:
                         (event.username, fp, now),
                     )
 
-            # Update sudo users
-            if event.event_type == "sudo_used":
+            # Update sudo users and commands
+            if event.event_type in ("sudo_used", "privilege_elevation") or effective_proc == "sudo":
                 conn.execute(
                     "INSERT INTO sudo_users (username, first_seen, count) "
                     "VALUES (?, ?, 1) "
                     "ON CONFLICT(username) DO UPDATE SET count = count + 1",
                     (event.username, now),
                 )
+                if effective_cmd:
+                    conn.execute(
+                        "INSERT INTO seen_sudo_commands (username, command, first_seen, count) "
+                        "VALUES (?, ?, ?, 1) "
+                        "ON CONFLICT(username, command) DO UPDATE SET count = count + 1",
+                        (event.username, effective_cmd, now),
+                    )
 
         self.increment_event_count()
 

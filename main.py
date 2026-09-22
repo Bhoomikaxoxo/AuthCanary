@@ -22,7 +22,8 @@ from ingest.cursor import CursorManager
 from enrich.providers import get_provider
 from enrich.cache import EnrichmentCache
 from engine.baseline import Baseline
-from engine.scoring import Scorer
+from engine.invariants import InvariantEngine
+from engine.novelty import NoveltyTracker
 from engine.models import ScoredEvent
 from output.report import generate_report
 from output.alerts import get_channels
@@ -130,44 +131,52 @@ def run(args: argparse.Namespace) -> None:
         except Exception as e:
             print(f"  Enrichment: disabled ({e})")
 
-    # ── Scoring ────────────────────────────────────────────────────
-    scorer = Scorer(config)
-    warmed_up = args.skip_warmup or baseline.is_warmed_up()
+    # ── Evaluation (Novelty & Security Invariants) ─────────────────
+    novelty = NoveltyTracker()
+    invariants = InvariantEngine(config)
+    alert_severities = set(config.get("invariants", {}).get("alert_severities", ["CRITICAL", "WARNING"]))
 
-    if not warmed_up:
-        print(f"\n  {baseline.warmup_status()}")
-
-    all_scored_events: list[ScoredEvent] = []  # Every event (score 0+)
-    scored_events: list[ScoredEvent] = []       # Events with score > 0
+    all_scored_events: list[ScoredEvent] = []
     alert_events: list[ScoredEvent] = []
 
     for event in events:
-        # Enrich IP if available
         enrichment = None
         if enrichment_cache and event.source_ip:
             enrichment = enrichment_cache.lookup(event.source_ip)
 
-        # Score against baseline (evaluates individual signals + correlated sequences)
-        scored = scorer.score(event, enrichment, baseline)
+        is_novel, novelty_reasons = novelty.evaluate(event, enrichment, baseline)
+        scored = invariants.evaluate(
+            event=event,
+            enrichment=enrichment,
+            baseline=baseline,
+            is_novel=is_novel,
+            novelty_reasons=novelty_reasons,
+        )
 
-        # Record in baseline (learn from this event, saving structured signals)
+        # Record in baseline
         if not args.dry_run:
             baseline.record_event(
-                event, enrichment, scored.score, scored.reasons, signals=scored.signals,
+                event=event,
+                enrichment=enrichment,
+                score=scored.score,
+                reasons=scored.reasons,
+                signals=scored.signals,
+                severity=scored.severity,
+                invariants=scored.invariants,
+                is_novel=is_novel,
+                command=event.command,
+                process=event.process,
             )
 
-        # Collect every event for the full log table
         all_scored_events.append(scored)
 
-        if scored.score > 0:
-            scored_events.append(scored)
-            if warmed_up and scorer.is_alert(scored):
-                alert_events.append(scored)
+        if scored.severity in alert_severities:
+            alert_events.append(scored)
 
     # ── Output ─────────────────────────────────────────────────────
     if not args.dry_run:
         json_path, html_path = generate_report(
-            scored_events, baseline, config, args.skip_warmup, integrity_results=integrity_results,
+            alert_events, baseline, config, args.skip_warmup, integrity_results=integrity_results,
             all_events=all_scored_events,
         )
         print(f"\n  Report: {html_path}")
@@ -176,24 +185,23 @@ def run(args: argparse.Namespace) -> None:
         print("\n  [dry-run] Skipping report generation and baseline update.")
 
     # ── Alerts ─────────────────────────────────────────────────────
-    if (alert_events or drift_alerts) and warmed_up:
+    if (alert_events or drift_alerts):
         channels = get_channels(config)
         total_alerts = len(alert_events) + len(drift_alerts)
-        print(f"\n  🚨 {total_alerts} alert(s) ({len(alert_events)} auth, {len(drift_alerts)} integrity):\n")
+        print(f"\n  🚨 {total_alerts} security alert(s) ({len(alert_events)} auth/elevations, {len(drift_alerts)} integrity):\n")
         for ch in channels:
             for ae in alert_events:
                 ch.send(ae)
-    elif warmed_up:
-        print("\n  ✓ No anomalies above threshold.")
+    else:
+        print("\n  ✓ No security invariants violated.")
 
     # ── Save cursor ────────────────────────────────────────────────
     if not args.dry_run:
         cursor_mgr.save(new_cursor)
 
     # Summary
-    print(f"\n  Summary: {len(events)} events processed, "
-          f"{len(scored_events)} scored, "
-          f"{len(alert_events)} auth alerts, "
+    print(f"\n  Summary: {len(events)} real system events processed, "
+          f"{len(alert_events)} warnings/critical alerts, "
           f"{len(drift_alerts)} drift alerts.")
 
 
@@ -201,9 +209,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="authcanary",
         description=(
-            "AuthCanary — Local-first anomaly detection for auth logs. "
-            "Builds a statistical baseline and surfaces only genuinely "
-            "novel events."
+            "AuthCanary — macOS System Log & Security Activity Monitor. "
+            "Evaluates real system logs against deterministic security invariants."
         ),
     )
     parser.add_argument(
@@ -214,7 +221,7 @@ def main() -> None:
     parser.add_argument(
         "--skip-warmup",
         action="store_true",
-        help="Bypass warm-up period, score all events immediately",
+        help="Bypass warm-up period, alert on all events immediately",
     )
     parser.add_argument(
         "--reset-baseline",
@@ -234,7 +241,7 @@ def main() -> None:
     parser.add_argument(
         "--serve",
         action="store_true",
-        help="Start local HTTP server for live dashboard viewing and auto-refresh",
+        help="Start live macOS Activity Monitor & Console web server",
     )
     parser.add_argument(
         "--port",
@@ -256,18 +263,22 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.serve:
-        print("AuthCanary v1\n")
+        print("AuthCanary — macOS System Log Activity Monitor\n")
         config = load_config(args.config)
         output_dir = config.get("output", {}).get("directory", "./output")
+        storage_cfg = config.get("storage", {})
+        db_path = str(Path(storage_cfg.get("db_path", "~/.authcanary/authcanary.db")).expanduser())
         start_server(
             output_dir=output_dir,
             port=args.port,
             host=args.bind,
             open_browser=args.open,
+            db_path=db_path,
+            config=config,
         )
         sys.exit(0)
 
-    print("AuthCanary v1\n")
+    print("AuthCanary — macOS System Log Activity Monitor\n")
     run(args)
 
 
