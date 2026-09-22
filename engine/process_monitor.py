@@ -120,6 +120,11 @@ class ProcessMonitor:
                     user = parts[2]
                     comm = parts[3]
                     args = parts[4] if len(parts) > 4 else comm
+
+                    # Ignore ps commands spawned by this monitor and self-children
+                    if comm == "ps" or comm.endswith("/ps") or "ps -A -o" in args or ppid == os.getpid():
+                        continue
+
                     procs.append({
                         "pid": pid,
                         "ppid": ppid,

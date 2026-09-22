@@ -121,10 +121,6 @@ class PersistenceMonitor:
                 if self.baseline and hasattr(self.baseline, "record_persistence"):
                     self.baseline.record_persistence(path_str, label, curr_hash, now)
 
-        # Check sfltool dumpbtm if on macOS
-        btm_events = self._check_btm_items(now, current_user)
-        events.extend(btm_events)
-
         return events
 
     def _scan_all(self) -> dict[str, dict]:
@@ -184,47 +180,3 @@ class PersistenceMonitor:
             }
         except (PermissionError, OSError):
             return None
-
-    def _check_btm_items(self, now: str, user: str) -> list[AuthEvent]:
-        """Check macOS Background Task Management (sfltool dumpbtm) for novel items."""
-        events: list[AuthEvent] = []
-        if not Path("/usr/bin/sfltool").exists():
-            return events
-
-        try:
-            res = subprocess.run(
-                ["/usr/bin/sfltool", "dumpbtm"],
-                capture_output=True,
-                text=True,
-                timeout=4,
-                check=False,
-            )
-            if res.returncode != 0:
-                return events
-
-            for line in res.stdout.splitlines():
-                line_str = line.strip()
-                if "Name:" in line_str or "URL:" in line_str:
-                    target_key = f"BTM:{line_str}"
-                    target_hash = hashlib.sha256(line_str.encode()).hexdigest()
-                    if target_key not in self._known_snapshots:
-                        self._known_snapshots[target_key] = target_hash
-                        if self.baseline and hasattr(self.baseline, "is_persistence_known"):
-                            if not self.baseline.is_persistence_known(target_key, target_hash):
-                                events.append(
-                                    AuthEvent(
-                                        timestamp=now,
-                                        event_type="PERSISTENCE_ADDITION",
-                                        username=user,
-                                        process="sfltool",
-                                        command=line_str,
-                                        persistence_target=target_key,
-                                        persistence_action="added",
-                                        raw_line=f"BTM Persistence item: {line_str}",
-                                    )
-                                )
-                                self.baseline.record_persistence(target_key, "BTM Item", target_hash, now)
-        except Exception:
-            pass
-
-        return events
