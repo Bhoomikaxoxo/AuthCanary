@@ -3,46 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuthCanary — Triage Console</title>
+<title>AuthCanary — Forensics Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-0: #080a0f;
-    --bg-1: #0f131c;
-    --bg-2: #161b26;
-    --bg-3: #1e2535;
-    --bg-hover: #262e42;
-    --bg-selected: rgba(6, 182, 212, 0.12);
+    --bg-0: #050505;
+    --bg-panel: #0D0D0D;
+    --bg-hover: #121212;
+    --bg-selected: #181818;
 
-    --border-0: rgba(255,255,255,0.06);
-    --border-1: rgba(255,255,255,0.12);
-    --border-cyan: rgba(6, 182, 212, 0.35);
+    --hairline: #1C1C1C;
+    --hairline-subtle: #141414;
 
-    --t1: #f1f5f9;
-    --t2: #94a3b8;
-    --t3: #64748b;
-    --t4: #475569;
+    --t-primary: #E8E6E1;
+    --t-secondary: #9E9C96;
+    --t-muted: #5C5A54;
 
-    --crit: #ef4444;
-    --crit-dim: rgba(239, 68, 68, 0.15);
-    --crit-border: rgba(239, 68, 68, 0.35);
+    --crit: #FF3B3B;
+    --crit-bg: rgba(255, 59, 59, 0.12);
+    --crit-border: rgba(255, 59, 59, 0.32);
 
-    --warn: #f59e0b;
-    --warn-dim: rgba(245, 158, 11, 0.15);
-    --warn-border: rgba(245, 158, 11, 0.35);
+    --warn: #FFB020;
+    --warn-bg: rgba(255, 176, 32, 0.12);
+    --warn-border: rgba(255, 176, 32, 0.32);
 
-    --note: #06b6d4;
-    --note-dim: rgba(6, 182, 212, 0.15);
-    --note-border: rgba(6, 182, 212, 0.35);
+    --note: #4A9EFF;
+    --note-bg: rgba(74, 158, 255, 0.08);
 
-    --ok: #10b981;
-    --ok-dim: rgba(16, 185, 129, 0.15);
-    --ok-border: rgba(16, 185, 129, 0.35);
-
+    --serif: 'Newsreader', Garamond, Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,21 +47,18 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }
-
-  body {
-    font-family: var(--sans);
     background: var(--bg-0);
-    color: var(--t1);
+    color: var(--t-primary);
+    font-family: var(--sans);
     -webkit-font-smoothing: antialiased;
     font-size: 13px;
   }
 
   /* ── CONSOLE HEADER ─────────────────────────────────────────── */
   .hdr {
-    background: var(--bg-1);
-    border-bottom: 1px solid var(--border-1);
-    padding: 12px 24px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--hairline);
+    padding: 10px 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -84,156 +73,123 @@
   }
 
   .hdr-mark {
-    width: 28px;
-    height: 28px;
-    background: var(--bg-3);
-    border: 1px solid var(--border-1);
-    border-radius: 6px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    color: var(--t-secondary);
   }
 
   .hdr-mark svg {
-    width: 15px;
-    height: 15px;
-    stroke: var(--note);
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
     fill: none;
-    stroke-width: 2;
+    stroke-width: 1.75;
   }
 
   .hdr-title {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .hdr-title h1 {
-    font-family: var(--mono);
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--t1);
-    margin: 0;
+  .brand-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--t-primary);
   }
 
-  .hdr-title span {
-    font-weight: 400;
-    color: var(--t3);
+  .brand-sub {
     font-size: 12px;
+    color: var(--t-muted);
+    font-family: var(--sans);
+    font-weight: 400;
   }
 
-  .hdr-host-badge {
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    color: var(--t2);
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    margin-left: 6px;
+  .hdr-host {
+    font-size: 12px;
+    color: var(--t-muted);
+    margin-left: 8px;
   }
 
-  .live-pill {
-    display: inline-flex;
+  /* ── SINGLE-LINE STATUS BAR ─────────────────────────────────── */
+  .status-bar {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--hairline);
+    padding: 8px 20px;
+    display: flex;
     align-items: center;
-    gap: 6px;
-    background: var(--ok-dim);
-    border: 1px solid var(--ok-border);
-    color: var(--ok);
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-  }
-  .live-pill.paused {
-    background: var(--warn-dim);
-    border-color: var(--warn-border);
-    color: var(--warn);
-  }
-  .pulse-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: live-pulse 1.8s infinite ease-in-out;
-  }
-  @keyframes live-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.3; transform: scale(0.7); }
-  }
-
-  /* ── ACTIVITY MONITOR PROCESS CARDS ──────────────────────────── */
-  .monitor-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
-    padding: 14px 20px;
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--border-0);
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--t-secondary);
     flex-shrink: 0;
   }
 
-  .proc-card {
-    background: var(--bg-1);
-    border: 1px solid var(--border-0);
-    border-radius: 8px;
-    padding: 12px 14px;
-    cursor: pointer;
-    transition: all 0.15s ease;
+  .status-left, .status-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-item strong {
+    color: var(--t-primary);
+    font-weight: 500;
+  }
+
+  .status-sep {
+    color: var(--t-muted);
     user-select: none;
   }
-  .proc-card:hover {
-    background: var(--bg-2);
-    border-color: var(--border-1);
-  }
-  .proc-card.active {
-    border-color: var(--note);
-    background: var(--bg-selected);
-  }
-  .proc-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-  }
-  .proc-name {
-    font-family: var(--mono);
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--t1);
-    display: flex;
+
+  .status-live-indicator {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
+    color: var(--t-secondary);
   }
-  .proc-badge {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-weight: 600;
+
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: live-pulse 2s infinite ease-in-out;
   }
-  .proc-count {
-    font-size: 18px;
-    font-weight: 700;
-    font-family: var(--mono);
-    color: var(--t1);
+  .pulse-dot.paused {
+    background: var(--warn);
+    animation: none;
   }
-  .proc-sub {
-    font-size: 11px;
-    color: var(--t3);
-    margin-top: 2px;
+
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+
+  .status-tally {
+    color: var(--t-muted);
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .status-tally:hover {
+    color: var(--t-primary);
+  }
+  .status-tally strong {
+    color: var(--t-secondary);
   }
 
   /* ── CONTROLS TOOLBAR ────────────────────────────────────────── */
   .toolbar {
-    padding: 10px 20px;
-    background: var(--bg-1);
-    border-bottom: 1px solid var(--border-1);
+    padding: 8px 20px;
+    background: var(--bg-0);
+    border-bottom: 1px solid var(--hairline);
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
@@ -249,65 +205,72 @@
 
   .search-box {
     position: relative;
-    width: 260px;
+    width: 250px;
   }
   .search-input {
     width: 100%;
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    color: var(--t1);
-    padding: 6px 10px 6px 30px;
-    border-radius: 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--hairline);
+    color: var(--t-primary);
+    padding: 5px 10px 5px 28px;
+    border-radius: 0;
     font-size: 12px;
     font-family: var(--sans);
     outline: none;
-    transition: border 0.15s ease;
+    transition: border-color 0.15s ease;
   }
   .search-input:focus {
-    border-color: var(--note);
+    border-color: var(--t-secondary);
+  }
+  .search-input::placeholder {
+    color: var(--t-muted);
   }
   .search-icon {
     position: absolute;
-    left: 9px;
-    top: 7px;
-    color: var(--t3);
+    left: 8px;
+    top: 6px;
+    color: var(--t-muted);
     pointer-events: none;
   }
 
   .filter-select {
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    color: var(--t1);
-    padding: 6px 10px;
-    border-radius: 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--hairline);
+    color: var(--t-primary);
+    padding: 5px 8px;
+    border-radius: 0;
     font-size: 12px;
     font-family: var(--sans);
     outline: none;
     cursor: pointer;
   }
+  .filter-select:focus {
+    border-color: var(--t-secondary);
+  }
 
   .btn {
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    color: var(--t1);
-    padding: 6px 12px;
-    border-radius: 6px;
+    background: var(--bg-panel);
+    border: 1px solid var(--hairline);
+    color: var(--t-secondary);
+    padding: 5px 10px;
+    border-radius: 0;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.15s ease;
+    transition: all 0.12s ease;
+    font-family: var(--sans);
   }
   .btn:hover {
-    background: var(--bg-3);
-    border-color: var(--t3);
+    color: var(--t-primary);
+    border-color: var(--t-muted);
   }
   .btn.active {
-    background: var(--note-dim);
-    border-color: var(--note-border);
-    color: var(--note);
+    background: var(--bg-selected);
+    border-color: var(--t-secondary);
+    color: var(--t-primary);
   }
 
   /* ── CONSOLE TABLE ───────────────────────────────────────────── */
@@ -332,23 +295,23 @@
   thead th {
     position: sticky;
     top: 0;
-    background: var(--bg-1);
-    border-bottom: 1px solid var(--border-1);
-    box-shadow: 0 1px 0 var(--border-1);
-    padding: 8px 12px;
-    font-weight: 600;
-    color: var(--t3);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--hairline);
+    padding: 7px 12px;
+    font-weight: 500;
+    color: var(--t-muted);
+    font-size: 12px;
+    font-family: var(--sans);
+    letter-spacing: normal;
+    text-transform: none;
     z-index: 20;
     user-select: none;
   }
 
   tbody tr {
-    border-bottom: 1px solid var(--border-0);
+    border-bottom: 1px solid var(--hairline-subtle);
     cursor: pointer;
-    transition: background 0.1s ease;
+    transition: background 0.08s ease;
   }
   tbody tr:hover {
     background: var(--bg-hover);
@@ -360,65 +323,90 @@
     animation: flash-row 1.2s ease-out;
   }
   @keyframes flash-row {
-    0% { background: rgba(6, 182, 212, 0.28); }
+    0% { background: #1a1a1a; }
     100% { background: transparent; }
   }
 
   td {
-    padding: 7px 12px;
+    padding: 6px 12px;
     white-space: nowrap;
     vertical-align: middle;
   }
   td.cell-msg {
     white-space: normal;
     word-break: break-all;
-    max-width: 500px;
+    max-width: 540px;
     font-family: var(--mono);
     font-size: 11px;
-    color: var(--t2);
+    color: var(--t-primary);
   }
 
-  .tag-time { font-family: var(--mono); color: var(--t3); font-size: 11px; }
-  .tag-proc { font-family: var(--mono); font-weight: 700; color: var(--t1); }
-  .tag-pid { font-family: var(--mono); color: var(--t4); }
-  .tag-user { font-weight: 600; color: var(--t1); }
+  .tag-time { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
+  .tag-proc { font-family: var(--mono); color: var(--t-primary); font-size: 11px; }
+  .tag-pid { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
+  .tag-user { font-family: var(--sans); color: var(--t-primary); font-weight: 500; }
+  .tag-action { font-family: var(--mono); font-size: 11px; color: var(--t-secondary); }
 
-  .sev-badge {
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-family: var(--mono);
-    font-weight: 700;
+  /* ── SEVERITY ACCENTS ────────────────────────────────────────── */
+  /* Only WARNING and CRITICAL get visual badges; NOTICE is clean accent text; INFO is muted */
+  .sev-tag {
+    font-size: 11px;
+    font-family: var(--sans);
+    font-weight: 500;
   }
-  .sev-CRITICAL { background: var(--crit-dim); color: var(--crit); border: 1px solid var(--crit-border); }
-  .sev-WARNING  { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn-border); }
-  .sev-NOTICE   { background: var(--note-dim); color: var(--note); border: 1px solid var(--note-border); }
-  .sev-INFO     { background: rgba(255,255,255,0.05); color: var(--t3); border: 1px solid var(--border-0); }
 
-  .novel-pill {
-    background: rgba(6, 182, 212, 0.15);
-    border: 1px solid rgba(6, 182, 212, 0.4);
-    color: var(--note);
-    font-family: var(--mono);
-    font-size: 10px;
+  .sev-tag.sev-CRITICAL {
+    color: var(--crit);
+    background: var(--crit-bg);
+    border: 1px solid var(--crit-border);
     padding: 1px 6px;
-    border-radius: 3px;
-    font-weight: 700;
+    display: inline-block;
+  }
+
+  .sev-tag.sev-WARNING {
+    color: var(--warn);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    padding: 1px 6px;
+    display: inline-block;
+  }
+
+  .sev-tag.sev-NOTICE {
+    color: var(--note);
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+
+  .sev-tag.sev-INFO {
+    color: var(--t-muted);
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+
+  /* Novelty indicators */
+  .novel-tag {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--t-secondary);
+  }
+  .novel-known {
+    color: var(--hairline);
+    font-size: 11px;
   }
 
   /* ── INSPECTOR SLIDE-OUT DRAWER ──────────────────────────────── */
   .drawer-overlay {
     position: fixed;
     top: 0;
-    right: -520px;
-    width: 500px;
+    right: -540px;
+    width: 520px;
     height: 100vh;
-    background: var(--bg-1);
-    border-left: 1px solid var(--border-1);
-    box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+    background: var(--bg-panel);
+    border-left: 1px solid var(--hairline);
     z-index: 50;
-    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
   }
@@ -427,28 +415,33 @@
   }
 
   .drawer-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-1);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--hairline);
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   .drawer-title {
-    font-size: 14px;
-    font-weight: 700;
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .drawer-title-main {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--t-primary);
+    font-weight: 500;
   }
   .btn-close {
     background: transparent;
     border: none;
-    color: var(--t2);
-    font-size: 16px;
+    color: var(--t-muted);
+    font-size: 18px;
     cursor: pointer;
-    padding: 4px;
+    padding: 2px 6px;
+    line-height: 1;
   }
-  .btn-close:hover { color: var(--t1); }
+  .btn-close:hover { color: var(--t-primary); }
 
   .drawer-body {
     padding: 20px;
@@ -460,60 +453,66 @@
   }
 
   .detail-group {
-    background: var(--bg-2);
-    border: 1px solid var(--border-0);
-    border-radius: 6px;
+    background: var(--bg-0);
+    border: 1px solid var(--hairline);
     padding: 12px;
   }
   .detail-label {
     font-size: 11px;
-    font-weight: 600;
-    color: var(--t3);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-weight: 500;
+    color: var(--t-muted);
     margin-bottom: 6px;
+    text-transform: none;
+    font-family: var(--sans);
   }
   .detail-val {
-    font-size: 13px;
-    color: var(--t1);
+    font-size: 12px;
+    color: var(--t-primary);
     word-break: break-all;
+    line-height: 1.5;
   }
   .detail-code {
     font-family: var(--mono);
-    background: var(--bg-0);
-    border: 1px solid var(--border-1);
+    background: var(--bg-panel);
+    border: 1px solid var(--hairline);
     padding: 8px;
-    border-radius: 4px;
     font-size: 11px;
-    color: var(--note);
+    color: var(--t-primary);
     overflow-x: auto;
+    line-height: 1.4;
   }
 
   .playbook-box {
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 6px;
-    padding: 14px;
+    background: var(--bg-0);
+    border: 1px solid var(--hairline);
+    padding: 12px;
+  }
+  .playbook-box.is-warning {
+    border-color: var(--warn-border);
+  }
+  .playbook-box.is-critical {
+    border-color: var(--crit-border);
   }
   .playbook-title {
-    color: var(--warn);
-    font-weight: 700;
+    color: var(--t-primary);
+    font-weight: 500;
     font-size: 12px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .playbook-text {
     font-family: var(--mono);
     font-size: 11px;
-    color: var(--t2);
+    color: var(--t-secondary);
     white-space: pre-wrap;
-    line-height: 1.6;
+    line-height: 1.5;
   }
 
   /* ── EMPTY STATE ─────────────────────────────────────────────── */
   .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: var(--t3);
+    color: var(--t-muted);
+    font-size: 13px;
   }
 </style>
 </head>
@@ -526,77 +525,44 @@
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
     </div>
     <div class="hdr-title">
-      <h1>AuthCanary</h1>
-      <span>Triage Console</span>
+      <span class="brand-title">AuthCanary</span>
+      <span class="brand-sub">SOC Forensics Console</span>
     </div>
-    <div class="hdr-host-badge">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</div>
-  </div>
-  <div style="display:flex; align-items:center; gap:12px;">
-    <div id="livePill" class="live-pill">
-      <div class="pulse-dot"></div>
-      <span id="liveStatusText">LIVE STREAM</span>
-    </div>
+    <span class="hdr-host">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</span>
   </div>
 </header>
 
-<!-- ── ACTIVITY MONITOR PROCESS CARDS ─────────────────────────── -->
-<section class="monitor-cards">
-  <div class="proc-card" data-proc="all" onclick="filterProcess('all')">
-    <div class="proc-card-header">
-      <span class="proc-name">All Activity</span>
-      <span class="proc-badge" style="background:var(--border-1);">STREAM</span>
-    </div>
-    <div id="countAll" class="proc-count">{{ all_events|length }}</div>
-    <div class="proc-sub">Live system events</div>
+<!-- ── SINGLE-LINE STATUS BAR ─────────────────────────────────── -->
+<div class="status-bar">
+  <div class="status-left">
+    <span class="status-item"><strong id="countAll">{{ all_events|length }}</strong> events</span>
+    <span class="status-sep">·</span>
+    <span class="status-item"><strong id="countFim">{{ integrity_alerts }}</strong> FIM alerts</span>
+    <span class="status-sep">·</span>
+    <span class="status-live-indicator">
+      <span id="pulseDot" class="pulse-dot"></span>
+      <span id="liveStatusText">live</span>
+    </span>
   </div>
-
-  <div class="proc-card" data-proc="sudo" onclick="filterProcess('sudo')">
-    <div class="proc-card-header">
-      <span class="proc-name">sudo</span>
-      <span class="proc-badge sev-WARNING">ELEVATION</span>
-    </div>
-    <div id="countSudo" class="proc-count">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</div>
-    <div class="proc-sub">Root command audit</div>
+  <div class="status-right">
+    <span class="status-tally" onclick="filterProcess('sudo')" title="Filter sudo events">sudo: <strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong></span>
+    <span class="status-sep">·</span>
+    <span class="status-tally" onclick="filterProcess('authd')" title="Filter authd events">authd: <strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong></span>
+    <span class="status-sep">·</span>
+    <span class="status-tally" onclick="filterProcess('sshd')" title="Filter sshd events">sshd: <strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong></span>
   </div>
-
-  <div class="proc-card" data-proc="authd" onclick="filterProcess('authd')">
-    <div class="proc-card-header">
-      <span class="proc-name">authd</span>
-      <span class="proc-badge sev-NOTICE">TOUCH ID</span>
-    </div>
-    <div id="countAuthd" class="proc-count">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</div>
-    <div class="proc-sub">Authorization & Biometrics</div>
-  </div>
-
-  <div class="proc-card" data-proc="sshd" onclick="filterProcess('sshd')">
-    <div class="proc-card-header">
-      <span class="proc-name">sshd</span>
-      <span class="proc-badge sev-CRITICAL">REMOTE</span>
-    </div>
-    <div id="countSshd" class="proc-count">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</div>
-    <div class="proc-sub">Remote SSH logins</div>
-  </div>
-
-  <div class="proc-card" data-proc="fim" onclick="toggleFimView()">
-    <div class="proc-card-header">
-      <span class="proc-name">Host FIM</span>
-      <span class="proc-badge" style="background:var(--ok-dim); color:var(--ok);">INTEGRITY</span>
-    </div>
-    <div class="proc-count">{{ integrity_results|length }}</div>
-    <div class="proc-sub">{{ integrity_alerts }} drift alerts detected</div>
-  </div>
-</section>
+</div>
 
 <!-- ── CONTROLS TOOLBAR ───────────────────────────────────────── -->
 <div class="toolbar">
   <div class="toolbar-left">
     <div class="search-box">
-      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
       <input id="searchInput" type="text" class="search-input" placeholder="Search user, command, IP, message..." oninput="applyFilters()">
     </div>
 
     <select id="procFilter" class="filter-select" onchange="filterProcess(this.value)">
-      <option value="all">All Processes</option>
+      <option value="all">All processes</option>
       <option value="sudo">sudo</option>
       <option value="authd">authd</option>
       <option value="sshd">sshd</option>
@@ -605,27 +571,27 @@
     </select>
 
     <select id="sevFilter" class="filter-select" onchange="applyFilters()">
-      <option value="all">All Severities</option>
-      <option value="CRITICAL">CRITICAL</option>
-      <option value="WARNING">WARNING</option>
-      <option value="NOTICE">NOTICE</option>
-      <option value="INFO">INFO</option>
+      <option value="all">All severities</option>
+      <option value="CRITICAL">Critical</option>
+      <option value="WARNING">Warning</option>
+      <option value="NOTICE">Notice</option>
+      <option value="INFO">Info</option>
     </select>
 
     <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">
-      First Seen Only
+      First seen only
     </button>
   </div>
 
   <div class="toolbar-right">
     <button id="btnPause" class="btn" onclick="toggleStreamPause()">
-      Pause Stream
+      Pause stream
     </button>
     <button id="btnAutoScroll" class="btn active" onclick="toggleAutoScroll()">
       Auto-scroll
     </button>
     <button class="btn" onclick="clearTable()">
-      Clear View
+      Clear view
     </button>
   </div>
 </div>
@@ -635,14 +601,14 @@
   <table class="log-table">
     <thead>
       <tr>
-        <th style="width: 100px;">Time</th>
+        <th style="width: 90px;">Time</th>
         <th style="width: 110px;">Process</th>
-        <th style="width: 70px;">PID</th>
+        <th style="width: 65px;">PID</th>
         <th style="width: 110px;">User</th>
-        <th style="width: 140px;">Invariant / Action</th>
-        <th style="width: 100px;">Severity</th>
-        <th>Command / Authorization Details</th>
-        <th style="width: 110px;">Novelty</th>
+        <th style="width: 150px;">Action</th>
+        <th style="width: 90px;">Severity</th>
+        <th>Event details</th>
+        <th style="width: 90px;">Novelty</th>
       </tr>
     </thead>
     <tbody id="logTbody">
@@ -664,33 +630,33 @@
         <td class="tag-pid">{{ item.event.pid or '-' }}</td>
         <td class="tag-user">{{ item.event.username }}</td>
         <td>
-          <span style="font-family:var(--mono); font-size:11px; color:var(--t2);">
+          <span class="tag-action">
             {{ item.invariants[0] if item.invariants else item.event.event_type }}
           </span>
         </td>
         <td>
-          <span class="sev-badge sev-{{ item.severity or 'INFO' }}">{{ item.severity or 'INFO' }}{% if item.score %} ({{ item.score }}){% endif %}</span>
+          <span class="sev-tag sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span>
         </td>
         <td class="cell-msg">
           {% if item.command %}
-            <strong>{{ item.command }}</strong>
+            <span>{{ item.command }}</span>
           {% elif item.reasons %}
-            {{ item.reasons[0] }}
+            <span>{{ item.reasons[0] }}</span>
           {% else %}
-            {{ item.event.event_type }}
+            <span>{{ item.event.event_type }}</span>
           {% endif %}
           {% if item.event.source_ip %}
-            <span style="color:var(--t3); margin-left:6px;">{{ item.event.source_ip }}</span>
+            <span style="color:var(--t-muted); margin-left:6px;">{{ item.event.source_ip }}</span>
           {% endif %}
           {% if item.enrichment and item.enrichment.asn %}
-            <span style="color:var(--t3); margin-left:4px;">{{ item.enrichment.asn }}</span>
+            <span style="color:var(--t-muted); margin-left:4px;">{{ item.enrichment.asn }}</span>
           {% endif %}
         </td>
         <td>
           {% if item.is_novel %}
-            <span class="novel-pill">FIRST SEEN</span>
+            <span class="novel-tag">first seen</span>
           {% else %}
-            <span style="color:var(--t4); font-size:10px;">KNOWN</span>
+            <span class="novel-known">—</span>
           {% endif %}
         </td>
       </tr>
@@ -706,42 +672,43 @@
 <aside id="inspectorDrawer" class="drawer-overlay">
   <div class="drawer-header">
     <div class="drawer-title">
-      <span id="drawerProc">sudo</span>
-      <span id="drawerSevBadge" class="sev-badge sev-INFO">INFO</span>
+      <span class="drawer-title-main">Event details</span>
+      <span id="drawerProc" style="font-family:var(--mono); font-size:12px; color:var(--t-secondary);">sudo</span>
+      <span id="drawerSevBadge" class="sev-tag sev-INFO">Info</span>
     </div>
     <button class="btn-close" onclick="closeInspector()">&times;</button>
   </div>
   <div class="drawer-body">
     <div class="detail-group">
-      <div class="detail-label">Event Timestamp</div>
+      <div class="detail-label">Timestamp</div>
       <div id="drawerTime" class="detail-val" style="font-family:var(--mono);">--</div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">User & Process Context</div>
+      <div class="detail-label">User & process context</div>
       <div class="detail-val">
-        User: <strong id="drawerUser">--</strong><br>
+        User: <strong id="drawerUser" style="color:var(--t-primary);">--</strong><br>
         Process: <span id="drawerProcName" style="font-family:var(--mono);">--</span> (PID: <span id="drawerPid">--</span>)
       </div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Command / Right Evaluated</div>
+      <div class="detail-label">Command / action evaluated</div>
       <div id="drawerCmd" class="detail-code">--</div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Security Invariant Analysis</div>
+      <div class="detail-label">Forensic details</div>
       <div id="drawerInvariantDesc" class="detail-val">--</div>
     </div>
 
     <div id="drawerPlaybookBox" class="playbook-box">
-      <div class="playbook-title">Operator Incident Guidance</div>
+      <div class="playbook-title">Operator incident guidance</div>
       <div id="drawerPlaybook" class="playbook-text">Review event details.</div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Raw Log Message Payload</div>
+      <div class="detail-label">Raw system log payload</div>
       <pre id="drawerRawJson" class="detail-code" style="max-height:220px;">{}</pre>
     </div>
   </div>
@@ -760,11 +727,10 @@
     sshd: parseInt(document.getElementById('countSshd')?.innerText || '0', 10)
   };
 
-  // Helper to match a single row's attributes against current filters
   function checkRowMatch(proc, sev, isNovel, searchData, q, filterSev) {
     if (q && !searchData.includes(q)) return false;
     if (activeProcess !== 'all' && !proc.toLowerCase().includes(activeProcess.toLowerCase())) return false;
-    if (filterSev !== 'all' && sev !== filterSev) return false;
+    if (filterSev !== 'all' && sev.toUpperCase() !== filterSev.toUpperCase()) return false;
     if (filterNovelOnly && !isNovel) return false;
     return true;
   }
@@ -798,9 +764,6 @@
   function filterProcess(proc) {
     activeProcess = proc;
     document.getElementById('procFilter').value = proc;
-    document.querySelectorAll('.proc-card').forEach(c => {
-      c.classList.toggle('active', c.getAttribute('data-proc') === proc);
-    });
     applyFilters();
   }
 
@@ -813,18 +776,18 @@
   function toggleStreamPause() {
     isPaused = !isPaused;
     const btn = document.getElementById('btnPause');
-    const pill = document.getElementById('livePill');
+    const dot = document.getElementById('pulseDot');
     const text = document.getElementById('liveStatusText');
     if (isPaused) {
-      btn.innerText = 'Resume Stream';
+      btn.innerText = 'Resume stream';
       btn.classList.add('active');
-      pill.classList.add('paused');
-      text.innerText = 'PAUSED';
+      dot.classList.add('paused');
+      text.innerText = 'paused';
     } else {
-      btn.innerText = 'Pause Stream';
+      btn.innerText = 'Pause stream';
       btn.classList.remove('active');
-      pill.classList.remove('paused');
-      text.innerText = 'LIVE STREAM';
+      dot.classList.remove('paused');
+      text.innerText = 'live';
     }
   }
 
@@ -846,22 +809,27 @@
     const proc = row.getAttribute('data-proc') || 'system';
     const sev = row.getAttribute('data-sev') || 'INFO';
     const user = row.getAttribute('data-user') || 'system';
-    const cmd = row.getAttribute('data-cmd') || 'None';
+    const cmd = row.getAttribute('data-cmd') || '';
     const raw = row.getAttribute('data-json') || '{}';
     const playbook = row.getAttribute('data-playbook') || 'Standard review: verify user baseline.';
     const time = row.querySelector('.tag-time') ? row.querySelector('.tag-time').innerText : '';
     const pid = row.querySelector('.tag-pid') ? row.querySelector('.tag-pid').innerText : '';
 
     document.getElementById('drawerProc').innerText = proc;
-    document.getElementById('drawerSevBadge').innerText = sev;
-    document.getElementById('drawerSevBadge').className = 'sev-badge sev-' + sev;
+    const badge = document.getElementById('drawerSevBadge');
+    badge.innerText = sev.charAt(0).toUpperCase() + sev.slice(1).toLowerCase();
+    badge.className = 'sev-tag sev-' + sev;
+
     document.getElementById('drawerTime').innerText = time;
     document.getElementById('drawerUser').innerText = user;
     document.getElementById('drawerProcName').innerText = proc;
     document.getElementById('drawerPid').innerText = pid;
-    document.getElementById('drawerCmd').innerText = cmd || '(No specific command attached)';
+    document.getElementById('drawerCmd').innerText = cmd || '(No command recorded)';
     document.getElementById('drawerInvariantDesc').innerText = row.querySelector('.cell-msg') ? row.querySelector('.cell-msg').innerText : '';
     document.getElementById('drawerPlaybook').innerText = playbook;
+
+    const pbBox = document.getElementById('drawerPlaybookBox');
+    pbBox.className = 'playbook-box' + (sev === 'CRITICAL' ? ' is-critical' : (sev === 'WARNING' ? ' is-warning' : ''));
 
     try {
       const parsed = JSON.parse(raw);
@@ -899,7 +867,7 @@
       };
 
       eventSource.onerror = function() {
-        // Automatically reconnects
+        // SSE automatically reconnects
       };
     } catch(err) {}
   }
@@ -918,18 +886,23 @@
 
     // Update counts
     counts.all = (counts.all || 0) + 1;
-    document.getElementById('countAll').innerText = counts.all;
+    const countAllEl = document.getElementById('countAll');
+    if (countAllEl) countAllEl.innerText = counts.all;
+
     if (proc.includes('sudo')) {
       counts.sudo = (counts.sudo || 0) + 1;
-      document.getElementById('countSudo').innerText = counts.sudo;
+      const el = document.getElementById('countSudo');
+      if (el) el.innerText = counts.sudo;
     }
     if (proc.includes('authd')) {
       counts.authd = (counts.authd || 0) + 1;
-      document.getElementById('countAuthd').innerText = counts.authd;
+      const el = document.getElementById('countAuthd');
+      if (el) el.innerText = counts.authd;
     }
     if (proc.includes('sshd')) {
       counts.sshd = (counts.sshd || 0) + 1;
-      document.getElementById('countSshd').innerText = counts.sshd;
+      const el = document.getElementById('countSshd');
+      if (el) el.innerText = counts.sshd;
     }
 
     const tr = document.createElement('tr');
@@ -945,18 +918,20 @@
     tr.setAttribute('data-search', searchData);
     tr.onclick = function() { openInspector(this); };
 
+    const sevDisplay = sev.charAt(0).toUpperCase() + sev.slice(1).toLowerCase();
+    const actionDisplay = invariants[0] || ev.event_type || '';
+
     tr.innerHTML = `
       <td class="tag-time">${timeStr}</td>
       <td class="tag-proc">${proc}</td>
       <td class="tag-pid">${ev.pid || '-'}</td>
       <td class="tag-user">${ev.username || 'system'}</td>
-      <td><span style="font-family:var(--mono); font-size:11px; color:var(--t2);">${invariants[0] || ev.event_type || ''}</span></td>
-      <td><span class="sev-badge sev-${sev}">${sev}</span></td>
-      <td class="cell-msg"><strong>${cmd ? cmd : (reasons[0] || ev.event_type || '')}</strong></td>
-      <td>${isNovel ? '<span class="novel-pill">FIRST SEEN</span>' : '<span style="color:var(--t4); font-size:10px;">KNOWN</span>'}</td>
+      <td><span class="tag-action">${actionDisplay}</span></td>
+      <td><span class="sev-tag sev-${sev}">${sevDisplay}</span></td>
+      <td class="cell-msg"><span>${cmd ? cmd : (reasons[0] || ev.event_type || '')}</span></td>
+      <td>${isNovel ? '<span class="novel-tag">first seen</span>' : '<span class="novel-known">—</span>'}</td>
     `;
 
-    // Fast O(1) visibility check for the new incoming row
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
     const filterSev = document.getElementById('sevFilter').value;
     if (!checkRowMatch(proc, sev, isNovel, searchData, q, filterSev)) {
@@ -965,12 +940,12 @@
 
     tbody.insertBefore(tr, tbody.firstChild);
 
-    // Keep DOM size lean for smooth 60fps scrolling
+    // Keep DOM size optimal
     if (tbody.children.length > 500) {
       tbody.removeChild(tbody.lastChild);
     }
 
-    // Direct, instant auto-scroll without layout thrashing; only stick if user hasn't scrolled down
+    // Auto-scroll anchor
     const container = document.querySelector('.table-container');
     if (autoScroll && container) {
       if (container.scrollTop < 60) {
@@ -979,7 +954,6 @@
     }
   }
 
-  // Start stream on page load
   window.addEventListener('DOMContentLoaded', () => {
     initLiveStream();
   });
