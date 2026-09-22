@@ -561,6 +561,9 @@
     margin-bottom: 8px;
     opacity: 0.5;
   }
+  .hidden {
+    display: none !important;
+  }
 
   /* INSPECTOR DRAWER */
   .drawer-backdrop {
@@ -905,7 +908,7 @@
       {% endfor %}
     </tbody>
   </table>
-  <div id="liveListeningState" class="empty" style="display: {% if all_events %}none{% else %}block{% endif %};">
+  <div id="liveListeningState" class="empty{% if all_events %} hidden{% endif %}">
     <div class="empty-icon" style="font-size: 28px; animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">⚡</div>
     <div style="font-size: 14px; font-weight: 600; color: var(--t-primary); margin-bottom: 6px;">Live Stream Active &amp; Connected</div>
     <div style="color: var(--t-secondary); max-width: 520px; margin: 0 auto 8px;">Monitoring real-time macOS security events (authd, sudo, sshd, execution telemetry) directly from the unified log stream.</div>
@@ -1062,7 +1065,10 @@
     const elAuthd = document.getElementById('countAuthd'); if (elAuthd) elAuthd.innerText = '0';
     const elSshd = document.getElementById('countSshd'); if (elSshd) elSshd.innerText = '0';
     const listening = document.getElementById('liveListeningState');
-    if (listening) listening.style.display = 'block';
+    if (listening) {
+      listening.classList.remove('hidden');
+      listening.style.display = 'block';
+    }
     applyFilters();
   }
 
@@ -1214,7 +1220,10 @@
 
     // Hide listening state
     const listening = document.getElementById('liveListeningState');
-    if (listening) listening.style.display = 'none';
+    if (listening) {
+      listening.classList.add('hidden');
+      listening.style.display = 'none';
+    }
 
     counts.all = (counts.all || 0) + 1;
     const elAll = document.getElementById('countAll');
