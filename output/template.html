@@ -6,49 +6,38 @@
 <title>AuthCanary — Triage Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-0: #050505;
     --bg-panel: #0D0D0D;
     --border-hairline: rgba(255, 255, 255, 0.08);
+    --hover-wash: rgba(255, 255, 255, 0.035);
 
     --t-primary: #E8E6E1;
     --t-muted: #5C5A54;
+    --t-faint: #38362F;
 
     --crit: #FF3B3B;
-    --crit-dim: rgba(255, 59, 59, 0.12);
-    --crit-border: rgba(255, 59, 59, 0.32);
-
     --warn: #FFB020;
-    --warn-dim: rgba(255, 176, 32, 0.12);
-    --warn-border: rgba(255, 176, 32, 0.32);
-
     --note: #4A9EFF;
-    --note-dim: rgba(74, 158, 255, 0.12);
-    --note-border: rgba(74, 158, 255, 0.32);
 
-    --serif: 'Newsreader', Georgia, serif;
+    --serif: 'Fraunces', Georgia, serif;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   }
 
-  *, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg-0); }
+  ::-webkit-scrollbar-thumb { background: var(--t-faint); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--t-muted); }
 
   html, body {
-    height: 100vh;
-    height: 100dvh;
-    margin: 0;
-    padding: 0;
+    height: 100vh; height: 100dvh;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     background: var(--bg-0);
     color: var(--t-primary);
     font-family: var(--sans);
@@ -57,249 +46,134 @@
     line-height: 1.4;
   }
 
-  /* ── CONSOLE HEADER ─────────────────────────────────────────── */
+  /* ── HEADER — the one designed moment ───────────────────────── */
   .hdr {
-    background: var(--bg-panel);
+    background: var(--bg-0);
     border-bottom: 1px solid var(--border-hairline);
-    padding: 10px 20px;
+    padding: 16px 22px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
-    z-index: 40;
   }
-
-  .hdr-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
+  .hdr-left { display: flex; align-items: baseline; gap: 14px; }
   .hdr-mark {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
     color: var(--t-primary);
+    position: relative;
+    top: 3px;
   }
-
-  .hdr-mark svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.75;
-  }
-
-  .hdr-title {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-
-  .hdr-title h1 {
+  .hdr-mark svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .hdr-title-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .hdr-title-row h1 {
     font-family: var(--serif);
-    font-size: 20px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
+    font-optical-sizing: auto;
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
     color: var(--t-primary);
-    margin: 0;
   }
+  .hdr-sub { font-size: 13px; color: var(--t-muted); font-style: italic; font-family: var(--serif); }
+  .hdr-host { font-size: 12px; color: var(--t-faint); font-family: var(--mono); }
 
-  .hdr-title span {
-    font-family: var(--sans);
-    font-weight: 400;
-    color: var(--t-muted);
-    font-size: 13px;
-    text-transform: none;
-    letter-spacing: normal;
+  .live-indicator {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--t-muted);
+    font-family: var(--mono);
   }
-
-  .hdr-host-badge {
-    color: var(--t-muted);
-    font-family: var(--sans);
-    font-size: 12px;
-    padding: 0;
-    margin-left: 8px;
-    background: transparent;
-    border: none;
-  }
-
-  /* ── SINGLE-LINE STATUS BAR ─────────────────────────────────── */
-  .status-bar {
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--border-hairline);
-    padding: 7px 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--sans);
-    font-size: 12px;
-    color: var(--t-muted);
-    flex-shrink: 0;
-  }
-
-  .status-seg {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--t-muted);
-  }
-
-  .status-seg strong {
-    color: var(--t-primary);
-    font-weight: 500;
-  }
-
-  .status-sep {
-    color: var(--border-hairline);
-    user-select: none;
-  }
-
-  .status-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--t-muted);
-    margin-left: 2px;
-  }
-
   .pulse-dot {
-    width: 6px;
-    height: 6px;
-    background: #10b981;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #2FBF71;
     animation: live-pulse 2s infinite ease-in-out;
   }
-  .pulse-dot.paused {
-    background: var(--warn);
-    animation: none;
-  }
-
+  .pulse-dot.paused { background: var(--warn); animation: none; }
   @keyframes live-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.35; transform: scale(0.8); }
+    50% { opacity: 0.3; transform: scale(0.75); }
   }
 
-  /* ── CONTROLS TOOLBAR ────────────────────────────────────────── */
-  .toolbar {
-    padding: 8px 20px;
+  /* ── STATUS LINE — replaces the 5 stat cards ────────────────── */
+  .status-bar {
     background: var(--bg-panel);
     border-bottom: 1px solid var(--border-hairline);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
+    padding: 8px 22px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 12.5px; color: var(--t-muted);
     flex-shrink: 0;
-    z-index: 30;
   }
+  .status-bar strong { color: var(--t-primary); font-weight: 600; font-family: var(--mono); }
+  .status-sep { color: var(--t-faint); }
+  .status-alert strong { color: var(--warn); }
 
-  .toolbar-left, .toolbar-right {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
+  /* ── TOOLBAR ─────────────────────────────────────────────────── */
+  .toolbar {
+    padding: 10px 22px;
+    background: var(--bg-0);
+    border-bottom: 1px solid var(--border-hairline);
+    display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; justify-content: space-between;
+    flex-shrink: 0;
   }
+  .toolbar-left, .toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-  .search-box {
-    position: relative;
-    width: 250px;
-  }
+  .search-box { position: relative; width: 260px; }
   .search-input {
     width: 100%;
-    background: var(--bg-0);
+    background: var(--bg-panel);
     border: 1px solid var(--border-hairline);
     color: var(--t-primary);
-    padding: 5px 10px 5px 28px;
-    font-size: 12px;
-    font-family: var(--sans);
+    padding: 6px 10px 6px 30px;
+    font-size: 12.5px;
     outline: none;
+    transition: border-color .12s ease;
   }
-  .search-input:focus {
-    border-color: var(--t-muted);
-  }
-  .search-input::placeholder {
-    color: var(--t-muted);
-  }
-  .search-icon {
-    position: absolute;
-    left: 8px;
-    top: 6px;
-    color: var(--t-muted);
-    pointer-events: none;
-  }
+  .search-input:focus { border-color: var(--t-muted); }
+  .search-input::placeholder { color: var(--t-faint); }
+  .search-icon { position: absolute; left: 9px; top: 8px; color: var(--t-faint); pointer-events: none; }
 
   .filter-select {
-    background: var(--bg-0);
+    background: var(--bg-panel);
     border: 1px solid var(--border-hairline);
     color: var(--t-primary);
-    padding: 5px 8px;
-    font-size: 12px;
-    font-family: var(--sans);
+    padding: 6px 9px;
+    font-size: 12.5px;
     outline: none;
     cursor: pointer;
   }
-  .filter-select:focus {
-    border-color: var(--t-muted);
-  }
+  .filter-select:focus { border-color: var(--t-muted); }
 
   .btn {
-    background: var(--bg-0);
+    background: var(--bg-panel);
     border: 1px solid var(--border-hairline);
     color: var(--t-muted);
-    padding: 5px 10px;
-    font-size: 12px;
-    font-weight: 400;
+    padding: 6px 12px;
+    font-size: 12.5px;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--sans);
-    transition: color 0.1s ease, border-color 0.1s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color .1s ease, border-color .1s ease, background .1s ease;
   }
-  .btn:hover {
-    color: var(--t-primary);
-    border-color: var(--t-muted);
-  }
-  .btn.active {
-    color: var(--t-primary);
-    border-color: var(--t-muted);
-    background: rgba(255, 255, 255, 0.04);
-  }
+  .btn:hover { color: var(--t-primary); border-color: var(--t-muted); }
+  .btn.active { color: var(--note); border-color: var(--note); background: rgba(74,158,255,0.08); }
 
-  /* ── CONSOLE TABLE ───────────────────────────────────────────── */
+  /* ── TABLE — the hero ────────────────────────────────────────── */
   .table-container {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    overflow-y: auto;
-    overflow-x: auto;
+    flex: 1; min-height: 0; width: 100%;
+    overflow: auto;
     background: var(--bg-0);
-    position: relative;
     -webkit-overflow-scrolling: touch;
   }
 
-  table.log-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    text-align: left;
-  }
+  table.log-table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; }
 
   thead th {
-    position: sticky;
-    top: 0;
-    background: var(--bg-panel);
+    position: sticky; top: 0;
+    background: var(--bg-0);
     border-bottom: 1px solid var(--border-hairline);
-    padding: 7px 12px;
+    padding: 9px 14px;
     font-weight: 500;
-    color: var(--t-muted);
+    color: var(--t-faint);
     font-size: 12px;
-    font-family: var(--sans);
-    text-transform: none;
-    letter-spacing: normal;
     z-index: 20;
     user-select: none;
   }
@@ -308,267 +182,120 @@
     border-bottom: 1px solid var(--border-hairline);
     border-left: 2px solid transparent;
     cursor: pointer;
-    background: var(--bg-0);
   }
-  tbody tr:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-  tbody tr.selected {
-    background: rgba(255, 255, 255, 0.04) !important;
-    border-left-color: var(--t-primary);
-  }
-  tbody tr.selected[data-sev="CRITICAL"] {
-    border-left-color: var(--crit);
-  }
-  tbody tr.selected[data-sev="WARNING"] {
-    border-left-color: var(--warn);
-  }
-  tbody tr.selected[data-sev="NOTICE"] {
-    border-left-color: var(--note);
-  }
-  tbody tr.selected[data-sev="INFO"] {
-    border-left-color: var(--t-muted);
-  }
+  tbody tr:hover { background: var(--hover-wash); }
+  tbody tr.selected { background: var(--hover-wash); border-left-color: var(--t-primary); }
+  tbody tr.selected[data-sev="CRITICAL"] { border-left-color: var(--crit); }
+  tbody tr.selected[data-sev="WARNING"]  { border-left-color: var(--warn); }
+  tbody tr.selected[data-sev="NOTICE"]   { border-left-color: var(--note); }
+  tbody tr.selected[data-sev="INFO"]     { border-left-color: var(--t-muted); }
 
-  tbody tr.flash-entry {
-    animation: flash-row 1.2s ease-out;
-  }
+  tbody tr.flash-entry { animation: flash-row 1s ease-out; }
   @keyframes flash-row {
-    0% { background: rgba(255, 255, 255, 0.08); }
+    0% { background: rgba(255, 255, 255, 0.07); }
     100% { background: transparent; }
   }
 
-  td {
-    padding: 6px 12px;
-    white-space: nowrap;
-    vertical-align: middle;
-  }
+  td { padding: 7px 14px; white-space: nowrap; vertical-align: middle; }
   td.cell-msg {
-    white-space: normal;
-    word-break: break-all;
-    max-width: 540px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--t-primary);
+    white-space: normal; word-break: break-all; max-width: 560px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--t-primary);
   }
 
-  .tag-time { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
-  .tag-proc { font-family: var(--sans); color: var(--t-primary); font-size: 12px; }
-  .tag-pid { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
-  .tag-user { font-family: var(--sans); color: var(--t-primary); font-weight: 500; }
-  .tag-action { font-family: var(--sans); font-size: 12px; color: var(--t-muted); }
+  .tag-time { font-family: var(--mono); color: var(--t-faint); font-size: 11.5px; }
+  .tag-proc { color: var(--t-primary); font-weight: 500; }
+  .tag-pid  { font-family: var(--mono); color: var(--t-faint); font-size: 11.5px; }
+  .tag-user { color: var(--t-primary); }
+  .tag-action { color: var(--t-muted); }
 
-  /* ── SEVERITY BADGES ─────────────────────────────────────────── */
-  .sev-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-family: var(--sans);
-    font-weight: 500;
-    text-transform: none;
-    letter-spacing: normal;
-  }
+  /* ── SEVERITY — the only color in the whole app ─────────────── */
+  .sev-badge { display: inline-block; font-size: 11px; font-weight: 600; }
+  .sev-badge.sev-CRITICAL { color: var(--crit); border: 1px solid rgba(255,59,59,.35);  padding: 1px 7px; }
+  .sev-badge.sev-WARNING  { color: var(--warn); border: 1px solid rgba(255,176,32,.35); padding: 1px 7px; }
+  .sev-badge.sev-NOTICE   { color: var(--note); border: 1px solid rgba(74,158,255,.35); padding: 1px 7px; }
+  .sev-badge.sev-INFO     { color: var(--t-faint); font-weight: 400; }
 
-  .sev-badge.sev-CRITICAL {
-    color: var(--crit);
-    background: var(--crit-dim);
-    border: 1px solid var(--crit-border);
-    padding: 1px 6px;
-  }
+  .novel-pill { color: var(--note); font-size: 11px; font-weight: 500; }
+  .known-dash { color: var(--t-faint); font-size: 11px; }
 
-  .sev-badge.sev-WARNING {
-    color: var(--warn);
-    background: var(--warn-dim);
-    border: 1px solid var(--warn-border);
-    padding: 1px 6px;
-  }
-
-  .sev-badge.sev-NOTICE {
-    color: var(--note);
-    background: var(--note-dim);
-    border: 1px solid var(--note-border);
-    padding: 1px 6px;
-  }
-
-  /* INFO severity: plain muted text, no badge, no border */
-  .sev-badge.sev-INFO {
-    color: var(--t-muted);
-    background: transparent;
-    border: none;
-    padding: 0;
-  }
-
-  .novel-pill {
-    color: var(--t-muted);
-    font-family: var(--sans);
-    font-size: 11px;
-    text-transform: none;
-    letter-spacing: normal;
-    background: transparent;
-    border: none;
-    padding: 0;
-  }
-
-  /* ── INSPECTOR SLIDE-OUT DRAWER ──────────────────────────────── */
+  /* ── DRAWER ──────────────────────────────────────────────────── */
   .drawer-overlay {
-    position: fixed;
-    top: 0;
-    right: -540px;
-    width: 520px;
-    height: 100vh;
+    position: fixed; top: 0; right: -540px; width: 500px; height: 100vh;
     background: var(--bg-panel);
     border-left: 1px solid var(--border-hairline);
     z-index: 50;
-    transition: right 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    display: flex;
-    flex-direction: column;
+    transition: right .22s cubic-bezier(.16,1,.3,1);
+    display: flex; flex-direction: column;
   }
-  .drawer-overlay.open {
-    right: 0;
-  }
+  .drawer-overlay.open { right: 0; }
 
   .drawer-header {
-    padding: 14px 20px;
+    padding: 16px 22px;
     border-bottom: 1px solid var(--border-hairline);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: flex; justify-content: space-between; align-items: center;
   }
-  .drawer-title {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-  .drawer-title-main {
-    font-family: var(--serif);
-    font-size: 18px;
-    color: var(--t-primary);
-    font-weight: 500;
-  }
-  .btn-close {
-    background: transparent;
-    border: none;
-    color: var(--t-muted);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 2px 6px;
-    line-height: 1;
-  }
+  .drawer-title { display: flex; align-items: baseline; gap: 10px; }
+  .drawer-title-main { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--t-primary); }
+  .btn-close { background: transparent; border: none; color: var(--t-faint); font-size: 20px; cursor: pointer; line-height: 1; }
   .btn-close:hover { color: var(--t-primary); }
 
-  .drawer-body {
-    padding: 20px;
-    overflow-y: auto;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
+  .drawer-body { padding: 22px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
 
-  .detail-group {
-    background: var(--bg-0);
-    border: 1px solid var(--border-hairline);
-    padding: 12px;
-  }
-  .detail-label {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--t-muted);
-    margin-bottom: 6px;
-    font-family: var(--sans);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-  .detail-val {
-    font-size: 12px;
-    color: var(--t-primary);
-    word-break: break-all;
-    line-height: 1.5;
-  }
+  .detail-group { border: 1px solid var(--border-hairline); padding: 13px; }
+  .detail-label { font-size: 11px; font-weight: 500; color: var(--t-faint); margin-bottom: 6px; }
+  .detail-val { font-size: 12.5px; color: var(--t-primary); word-break: break-all; line-height: 1.6; }
   .detail-code {
-    font-family: var(--mono);
-    background: var(--bg-panel);
+    font-family: var(--mono); background: var(--bg-0);
     border: 1px solid var(--border-hairline);
-    padding: 8px;
-    font-size: 11px;
-    color: var(--t-primary);
-    overflow-x: auto;
-    line-height: 1.4;
+    padding: 9px; font-size: 11.5px; color: var(--t-primary);
+    overflow-x: auto; line-height: 1.5;
   }
 
-  .playbook-box {
-    background: var(--bg-0);
-    border: 1px solid var(--border-hairline);
-    padding: 12px;
-  }
-  .playbook-box.is-warning {
-    border-color: var(--warn-border);
-  }
-  .playbook-box.is-critical {
-    border-color: var(--crit-border);
-  }
-  .playbook-title {
-    color: var(--t-primary);
-    font-weight: 500;
-    font-size: 12px;
-    margin-bottom: 6px;
-  }
-  .playbook-text {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--t-muted);
-    white-space: pre-wrap;
-    line-height: 1.5;
-  }
+  .playbook-box { border: 1px solid var(--border-hairline); padding: 13px; }
+  .playbook-box.is-warning  { border-color: rgba(255,176,32,.35); }
+  .playbook-box.is-critical { border-color: rgba(255,59,59,.35); }
+  .playbook-title { color: var(--t-primary); font-weight: 500; font-size: 12.5px; margin-bottom: 6px; }
+  .playbook-text { font-family: var(--mono); font-size: 11.5px; color: var(--t-muted); white-space: pre-wrap; line-height: 1.6; }
 
-  /* ── EMPTY STATE ─────────────────────────────────────────────── */
-  .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--t-muted);
-    font-size: 13px;
-  }
+  .empty-state { text-align: center; padding: 70px 20px; color: var(--t-faint); font-size: 13px; }
 </style>
 </head>
 <body>
 
-<!-- ── CONSOLE HEADER ─────────────────────────────────────────── -->
 <header class="hdr">
   <div class="hdr-left">
     <div class="hdr-mark">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
     </div>
-    <div class="hdr-title">
+    <div class="hdr-title-row">
       <h1>AuthCanary</h1>
-      <span>Triage Console</span>
+      <span class="hdr-sub">triage console</span>
+      <span class="hdr-host">{{ host_info.hostname or "localhost" }} · {{ host_info.platform or "Darwin" }}</span>
     </div>
-    <div class="hdr-host-badge">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</div>
   </div>
-</header>
-
-<!-- ── SINGLE-LINE STATUS BAR ─────────────────────────────────── -->
-<div class="status-bar">
-  <span class="status-seg"><strong id="countAll">{{ all_events|length }}</strong> events</span>
-  <span class="status-sep">·</span>
-  <span class="status-seg"><strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong> sudo</span>
-  <span class="status-sep">·</span>
-  <span class="status-seg"><strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong> authd</span>
-  <span class="status-sep">·</span>
-  <span class="status-seg"><strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong> sshd</span>
-  <span class="status-sep">·</span>
-  <span class="status-seg"><strong>{{ integrity_alerts }}</strong> FIM alerts</span>
-  <span class="status-sep">·</span>
-  <span id="livePill" class="status-live">
+  <span id="livePill" class="live-indicator">
     <span class="pulse-dot"></span>
     <span id="liveStatusText">live</span>
   </span>
+</header>
+
+<div class="status-bar">
+  <span><strong id="countAll">{{ all_events|length }}</strong> events</span>
+  <span class="status-sep">·</span>
+  <span><strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong> sudo</span>
+  <span class="status-sep">·</span>
+  <span><strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong> authd</span>
+  <span class="status-sep">·</span>
+  <span><strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong> sshd</span>
+  <span class="status-sep">·</span>
+  <span class="{{ 'status-alert' if integrity_alerts and integrity_alerts > 0 else '' }}"><strong>{{ integrity_alerts }}</strong> FIM alerts</span>
 </div>
 
-<!-- ── CONTROLS TOOLBAR ───────────────────────────────────────── -->
 <div class="toolbar">
   <div class="toolbar-left">
     <div class="search-box">
-      <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <input id="searchInput" type="text" class="search-input" placeholder="Search user, command, IP, message..." oninput="applyFilters()">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input id="searchInput" type="text" class="search-input" placeholder="Search user, command, IP, message…" oninput="applyFilters()">
     </div>
 
     <select id="procFilter" class="filter-select" onchange="filterProcess(this.value)">
@@ -588,25 +315,16 @@
       <option value="INFO">Info</option>
     </select>
 
-    <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">
-      First seen only
-    </button>
+    <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">First seen only</button>
   </div>
 
   <div class="toolbar-right">
-    <button id="btnPause" class="btn" onclick="toggleStreamPause()">
-      Pause stream
-    </button>
-    <button id="btnAutoScroll" class="btn active" onclick="toggleAutoScroll()">
-      Auto-scroll
-    </button>
-    <button class="btn" onclick="clearTable()">
-      Clear view
-    </button>
+    <button id="btnPause" class="btn" onclick="toggleStreamPause()">Pause stream</button>
+    <button id="btnAutoScroll" class="btn active" onclick="toggleAutoScroll()">Auto-scroll</button>
+    <button class="btn" onclick="clearTable()">Clear view</button>
   </div>
 </div>
 
-<!-- ── LIVE CONSOLE TABLE ─────────────────────────────────────── -->
 <div class="table-container">
   <table class="log-table">
     <thead>
@@ -615,7 +333,7 @@
         <th style="width: 110px;">Process</th>
         <th style="width: 65px;">PID</th>
         <th style="width: 110px;">User</th>
-        <th style="width: 150px;">Invariant / action</th>
+        <th style="width: 160px;">Invariant / action</th>
         <th style="width: 90px;">Severity</th>
         <th>Command / authorization details</th>
         <th style="width: 90px;">Novelty</th>
@@ -639,51 +357,31 @@
         <td class="tag-proc">{{ item.process or item.event.process or 'system' }}</td>
         <td class="tag-pid">{{ item.event.pid or '-' }}</td>
         <td class="tag-user">{{ item.event.username }}</td>
-        <td>
-          <span class="tag-action">
-            {{ item.invariants[0] if item.invariants else item.event.event_type }}
-          </span>
-        </td>
-        <td>
-          <span class="sev-badge sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span>
-        </td>
+        <td><span class="tag-action">{{ item.invariants[0] if item.invariants else item.event.event_type }}</span></td>
+        <td><span class="sev-badge sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span></td>
         <td class="cell-msg">
-          {% if item.command %}
-            <span>{{ item.command }}</span>
-          {% elif item.reasons %}
-            <span>{{ item.reasons[0] }}</span>
-          {% else %}
-            <span>{{ item.event.event_type }}</span>
-          {% endif %}
-          {% if item.event.source_ip %}
-            <span style="color:var(--t-muted); margin-left:6px;">{{ item.event.source_ip }}</span>
-          {% endif %}
-          {% if item.enrichment and item.enrichment.asn %}
-            <span style="color:var(--t-muted); margin-left:4px;">{{ item.enrichment.asn }}</span>
-          {% endif %}
+          {% if item.command %}<span>{{ item.command }}</span>
+          {% elif item.reasons %}<span>{{ item.reasons[0] }}</span>
+          {% else %}<span>{{ item.event.event_type }}</span>{% endif %}
+          {% if item.event.source_ip %}<span style="color:var(--t-faint); margin-left:6px;">{{ item.event.source_ip }}</span>{% endif %}
+          {% if item.enrichment and item.enrichment.asn %}<span style="color:var(--t-faint); margin-left:4px;">{{ item.enrichment.asn }}</span>{% endif %}
         </td>
         <td>
-          {% if item.is_novel %}
-            <span class="novel-pill">first seen</span>
-          {% else %}
-            <span style="color:var(--t-muted); font-size:11px;">—</span>
-          {% endif %}
+          {% if item.is_novel %}<span class="novel-pill">first seen</span>
+          {% else %}<span class="known-dash">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <div id="emptyNotice" class="empty-state" style="display:none;">
-    No log events match the current filter.
-  </div>
+  <div id="emptyNotice" class="empty-state" style="display:none;">No log events match the current filter.</div>
 </div>
 
-<!-- ── SLIDE-OUT INSPECTOR DRAWER ─────────────────────────────── -->
 <aside id="inspectorDrawer" class="drawer-overlay">
   <div class="drawer-header">
     <div class="drawer-title">
       <span class="drawer-title-main">Event details</span>
-      <span id="drawerProc" style="font-family:var(--sans); font-size:12px; color:var(--t-muted);">sudo</span>
+      <span id="drawerProc" style="font-size:12.5px; color:var(--t-muted);">sudo</span>
       <span id="drawerSevBadge" class="sev-badge sev-INFO">Info</span>
     </div>
     <button class="btn-close" onclick="closeInspector()">&times;</button>
@@ -693,30 +391,25 @@
       <div class="detail-label">Time</div>
       <div id="drawerTime" class="detail-val" style="font-family:var(--mono);">--</div>
     </div>
-
     <div class="detail-group">
       <div class="detail-label">User & process context</div>
       <div class="detail-val">
         User: <strong id="drawerUser" style="color:var(--t-primary);">--</strong><br>
-        Process: <span id="drawerProcName" style="font-family:var(--sans);">--</span> (PID: <span id="drawerPid" style="font-family:var(--mono);">--</span>)
+        Process: <span id="drawerProcName">--</span> (PID: <span id="drawerPid" style="font-family:var(--mono);">--</span>)
       </div>
     </div>
-
     <div class="detail-group">
       <div class="detail-label">Command / authorization details</div>
       <div id="drawerCmd" class="detail-code">--</div>
     </div>
-
     <div class="detail-group">
       <div class="detail-label">Invariant / action evaluation</div>
       <div id="drawerInvariantDesc" class="detail-val">--</div>
     </div>
-
     <div id="drawerPlaybookBox" class="playbook-box">
       <div class="playbook-title">Operator incident guidance</div>
       <div id="drawerPlaybook" class="playbook-text">Review event details.</div>
     </div>
-
     <div class="detail-group">
       <div class="detail-label">Raw log payload</div>
       <pre id="drawerRawJson" class="detail-code" style="max-height:220px;">{}</pre>
@@ -745,7 +438,6 @@
     return true;
   }
 
-  // ── FILTERING ────────────────────────────────────────────────
   function applyFilters() {
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
     const sev = document.getElementById('sevFilter').value;
@@ -759,7 +451,6 @@
       const rSev = r.getAttribute('data-sev') || '';
       const rNovel = r.getAttribute('data-novel') === 'true';
       const searchData = r.getAttribute('data-search') || '';
-
       if (checkRowMatch(proc, rSev, rNovel, searchData, q, sev)) {
         r.style.display = '';
         visibleCount++;
@@ -767,7 +458,6 @@
         r.style.display = 'none';
       }
     }
-
     document.getElementById('emptyNotice').style.display = visibleCount === 0 ? 'block' : 'none';
   }
 
@@ -812,7 +502,6 @@
     applyFilters();
   }
 
-  // ── INSPECTOR DRAWER ─────────────────────────────────────────
   function openInspector(row) {
     document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
     row.classList.add('selected');
@@ -857,29 +546,17 @@
     document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
   }
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeInspector();
-  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInspector(); });
 
-  // ── LIVE STREAM VIA SERVER-SENT EVENTS (/api/stream) ─────────
   function initLiveStream() {
     if (!window.EventSource) return;
-
     try {
       eventSource = new EventSource('/api/stream');
-
       eventSource.onmessage = function(e) {
         if (isPaused || !e.data) return;
-
-        try {
-          const item = JSON.parse(e.data);
-          addLiveRow(item);
-        } catch(err) {}
+        try { addLiveRow(JSON.parse(e.data)); } catch(err) {}
       };
-
-      eventSource.onerror = function() {
-        // SSE automatically reconnects
-      };
+      eventSource.onerror = function() {};
     } catch(err) {}
   }
 
@@ -895,26 +572,12 @@
     const ts = ev.timestamp || '';
     const timeStr = ts.length >= 8 ? ts.slice(-8) : ts;
 
-    // Update counts
     counts.all = (counts.all || 0) + 1;
     const countAllEl = document.getElementById('countAll');
     if (countAllEl) countAllEl.innerText = counts.all;
-
-    if (proc.includes('sudo')) {
-      counts.sudo = (counts.sudo || 0) + 1;
-      const el = document.getElementById('countSudo');
-      if (el) el.innerText = counts.sudo;
-    }
-    if (proc.includes('authd')) {
-      counts.authd = (counts.authd || 0) + 1;
-      const el = document.getElementById('countAuthd');
-      if (el) el.innerText = counts.authd;
-    }
-    if (proc.includes('sshd')) {
-      counts.sshd = (counts.sshd || 0) + 1;
-      const el = document.getElementById('countSshd');
-      if (el) el.innerText = counts.sshd;
-    }
+    if (proc.includes('sudo'))  { counts.sudo = (counts.sudo || 0) + 1; const el = document.getElementById('countSudo'); if (el) el.innerText = counts.sudo; }
+    if (proc.includes('authd')) { counts.authd = (counts.authd || 0) + 1; const el = document.getElementById('countAuthd'); if (el) el.innerText = counts.authd; }
+    if (proc.includes('sshd'))  { counts.sshd = (counts.sshd || 0) + 1; const el = document.getElementById('countSshd'); if (el) el.innerText = counts.sshd; }
 
     const tr = document.createElement('tr');
     tr.className = 'flash-entry';
@@ -940,32 +603,21 @@
       <td><span class="tag-action">${actionDisplay}</span></td>
       <td><span class="sev-badge sev-${sev}">${sevDisplay}</span></td>
       <td class="cell-msg"><span>${cmd ? cmd : (reasons[0] || ev.event_type || '')}</span></td>
-      <td>${isNovel ? '<span class="novel-pill">first seen</span>' : '<span style="color:var(--t-muted); font-size:11px;">—</span>'}</td>
+      <td>${isNovel ? '<span class="novel-pill">first seen</span>' : '<span class="known-dash">—</span>'}</td>
     `;
 
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
     const filterSev = document.getElementById('sevFilter').value;
-    if (!checkRowMatch(proc, sev, isNovel, searchData, q, filterSev)) {
-      tr.style.display = 'none';
-    }
+    if (!checkRowMatch(proc, sev, isNovel, searchData, q, filterSev)) tr.style.display = 'none';
 
     tbody.insertBefore(tr, tbody.firstChild);
-
-    if (tbody.children.length > 500) {
-      tbody.removeChild(tbody.lastChild);
-    }
+    if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
 
     const container = document.querySelector('.table-container');
-    if (autoScroll && container) {
-      if (container.scrollTop < 60) {
-        container.scrollTop = 0;
-      }
-    }
+    if (autoScroll && container && container.scrollTop < 60) container.scrollTop = 0;
   }
 
-  window.addEventListener('DOMContentLoaded', () => {
-    initLiveStream();
-  });
+  window.addEventListener('DOMContentLoaded', () => { initLiveStream(); });
 </script>
 </body>
 </html>
