@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuthCanary — macOS Security & Log Activity Monitor</title>
+<title>AuthCanary — Triage Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -65,11 +65,11 @@
     font-size: 13px;
   }
 
-  /* ── MAC OS WINDOW TOP BAR ───────────────────────────────────── */
-  .window-header {
+  /* ── CONSOLE HEADER ─────────────────────────────────────────── */
+  .hdr {
     background: var(--bg-1);
     border-bottom: 1px solid var(--border-1);
-    padding: 10px 20px;
+    padding: 12px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -77,32 +77,62 @@
     z-index: 40;
   }
 
-  .window-dots {
+  .hdr-left {
     display: flex;
-    gap: 7px;
     align-items: center;
+    gap: 12px;
   }
-  .dot { width: 11px; height: 11px; border-radius: 50%; }
-  .dot-red { background: #ff5f56; border: 1px solid #e0443e; }
-  .dot-yellow { background: #ffbd2e; border: 1px solid #dea123; }
-  .dot-green { background: #27c93f; border: 1px solid #1aab29; }
 
-  .window-title {
+  .hdr-mark {
+    width: 28px;
+    height: 28px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    border-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-weight: 600;
-    font-size: 14px;
-    letter-spacing: -0.2px;
+    justify-content: center;
+    flex-shrink: 0;
   }
-  .badge-host {
+
+  .hdr-mark svg {
+    width: 15px;
+    height: 15px;
+    stroke: var(--note);
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .hdr-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .hdr-title h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--t1);
+    margin: 0;
+  }
+
+  .hdr-title span {
+    font-weight: 400;
+    color: var(--t3);
+    font-size: 12px;
+  }
+
+  .hdr-host-badge {
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     color: var(--t2);
     font-family: var(--mono);
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     border-radius: 4px;
+    margin-left: 6px;
   }
 
   .live-pill {
@@ -489,20 +519,17 @@
 </head>
 <body>
 
-<!-- ── TOP WINDOW BAR ─────────────────────────────────────────── -->
-<header class="window-header">
-  <div style="display:flex; align-items:center; gap:16px;">
-    <div class="window-dots">
-      <div class="dot dot-red"></div>
-      <div class="dot dot-yellow"></div>
-      <div class="dot dot-green"></div>
+<!-- ── CONSOLE HEADER ─────────────────────────────────────────── -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div class="hdr-mark">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
     </div>
-    <div class="window-title">
-      <span>AuthCanary</span>
-      <span style="color:var(--t3);">/</span>
-      <span>macOS System Log Activity Monitor</span>
-      <span class="badge-host">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</span>
+    <div class="hdr-title">
+      <h1>AuthCanary</h1>
+      <span>Triage Console</span>
     </div>
+    <div class="hdr-host-badge">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</div>
   </div>
   <div style="display:flex; align-items:center; gap:12px;">
     <div id="livePill" class="live-pill">
@@ -586,19 +613,19 @@
     </select>
 
     <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">
-      ⚡ First Seen Only
+      First Seen Only
     </button>
   </div>
 
   <div class="toolbar-right">
     <button id="btnPause" class="btn" onclick="toggleStreamPause()">
-      ⏸ Pause Stream
+      Pause Stream
     </button>
     <button id="btnAutoScroll" class="btn active" onclick="toggleAutoScroll()">
-      ⬇ Auto-scroll
+      Auto-scroll
     </button>
     <button class="btn" onclick="clearTable()">
-      🗑 Clear View
+      Clear View
     </button>
   </div>
 </div>
@@ -682,7 +709,7 @@
       <span id="drawerProc">sudo</span>
       <span id="drawerSevBadge" class="sev-badge sev-INFO">INFO</span>
     </div>
-    <button class="btn-close" onclick="closeInspector()">✕</button>
+    <button class="btn-close" onclick="closeInspector()">&times;</button>
   </div>
   <div class="drawer-body">
     <div class="detail-group">
@@ -709,7 +736,7 @@
     </div>
 
     <div id="drawerPlaybookBox" class="playbook-box">
-      <div class="playbook-title">📋 Operator Incident Guidance</div>
+      <div class="playbook-title">Operator Incident Guidance</div>
       <div id="drawerPlaybook" class="playbook-text">Review event details.</div>
     </div>
 
@@ -789,12 +816,12 @@
     const pill = document.getElementById('livePill');
     const text = document.getElementById('liveStatusText');
     if (isPaused) {
-      btn.innerText = '▶ Resume Stream';
+      btn.innerText = 'Resume Stream';
       btn.classList.add('active');
       pill.classList.add('paused');
       text.innerText = 'PAUSED';
     } else {
-      btn.innerText = '⏸ Pause Stream';
+      btn.innerText = 'Pause Stream';
       btn.classList.remove('active');
       pill.classList.remove('paused');
       text.innerText = 'LIVE STREAM';
