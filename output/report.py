@@ -106,59 +106,32 @@ def generate_report(
                 else:
                     setattr(self, k, v)
 
-    # 2. All events (Full Log Stream — includes score-0 events)
-    # Prefer persisted history from baseline event_log if available, else use passed events
-    logged_events = baseline.get_all_logged_events(limit=1000) if hasattr(baseline, "get_all_logged_events") else []
+    # 2. All events (Full Log Stream)
+    # Only populate template_all_events with events from the current run if provided.
+    # Do NOT prefill with 1,000 stale historical logs so the live activity monitor starts clean and live.
+    full_events = all_events if all_events is not None else scored_events
     template_all_events = []
     user_stats = {}
     event_type_counts = {}
     hour_histogram = [0] * 24
 
-    if logged_events:
-        for le in logged_events:
-            sigs = le.get("signals", [])
-            invs = le.get("invariants", [])
-            pb = get_playbook(sigs or [i.lower() for i in invs], user=le["username"], ip=le.get("source_ip") or "unknown")
-            obj = _Obj({
-                "score": le["score"],
-                "reasons": le["reasons"],
-                "severity": le.get("severity", "INFO"),
-                "invariants": invs,
-                "process": le.get("process", "system"),
-                "is_novel": le.get("is_novel", False),
-                "command": le.get("command", ""),
-                "event": _Obj({
-                    "timestamp": le["timestamp"],
-                    "username": le["username"],
-                    "event_type": le["event_type"],
-                    "source_ip": le["source_ip"],
-                    "raw_line": le["raw_line"],
-                    "process": le.get("process", "system"),
-                    "command": le.get("command", ""),
-                }),
-                "enrichment": None,
-                "playbook": pb,
-            })
-            template_all_events.append(obj)
-    else:
-        full_events = all_events if all_events is not None else scored_events
-        for se in full_events:
-            sigs = getattr(se, "signals", [])
-            invs = getattr(se, "invariants", [])
-            pb = getattr(se, "playbook", "") or get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown")
-            obj = _Obj({
-                "score": se.score,
-                "reasons": se.reasons,
-                "severity": getattr(se, "severity", "INFO"),
-                "invariants": invs,
-                "process": getattr(se.event, "process", "system"),
-                "is_novel": getattr(se, "is_novel", False),
-                "command": getattr(se.event, "command", ""),
-                "event": _Obj(se.event.to_dict()),
-                "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
-                "playbook": pb,
-            })
-            template_all_events.append(obj)
+    for se in full_events:
+        sigs = getattr(se, "signals", [])
+        invs = getattr(se, "invariants", [])
+        pb = getattr(se, "playbook", "") or get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown")
+        obj = _Obj({
+            "score": se.score,
+            "reasons": se.reasons,
+            "severity": getattr(se, "severity", "INFO"),
+            "invariants": invs,
+            "process": getattr(se.event, "process", "system"),
+            "is_novel": getattr(se, "is_novel", False),
+            "command": getattr(se.event, "command", ""),
+            "event": _Obj(se.event.to_dict()),
+            "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
+            "playbook": pb,
+        })
+        template_all_events.append(obj)
 
     # Build 24-hour histogram, hourly max scores, and hourly summary data
     hour_histogram = [0] * 24

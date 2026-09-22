@@ -838,6 +838,7 @@
     <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">First Seen Only</button>
   </div>
   <div class="toolbar-right">
+    <button id="btnLoadHistory" class="btn" onclick="loadRecentHistory()" title="Fetch last 50 events from SQLite baseline">↺ Load Recent (50)</button>
     <button id="btnPause" class="btn" onclick="toggleStreamPause()">Pause</button>
     <button id="btnAutoScroll" class="btn on" onclick="toggleAutoScroll()">Auto-scroll</button>
     <button class="btn btn-danger" onclick="clearTable()">Clear</button>
@@ -904,6 +905,12 @@
       {% endfor %}
     </tbody>
   </table>
+  <div id="liveListeningState" class="empty" style="display: {% if all_events %}none{% else %}block{% endif %};">
+    <div class="empty-icon" style="font-size: 28px; animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">⚡</div>
+    <div style="font-size: 14px; font-weight: 600; color: var(--t-primary); margin-bottom: 6px;">Live Stream Active &amp; Connected</div>
+    <div style="color: var(--t-secondary); max-width: 520px; margin: 0 auto 8px;">Monitoring real-time macOS security events (authd, sudo, sshd, execution telemetry) directly from the unified log stream.</div>
+    <div style="font-size: 11px; font-family: var(--font-mono); color: var(--t-muted);">Run any command with <code>sudo</code> or trigger Touch ID to see real-time events stream in.</div>
+  </div>
   <div id="emptyNotice" class="empty" style="display:none;">
     <div class="empty-icon">🔍</div>
     <div>No events match the current filter criteria.</div>
@@ -1015,7 +1022,7 @@
         r.style.display = 'none';
       }
     }
-    document.getElementById('emptyNotice').style.display = visible === 0 ? 'block' : 'none';
+    document.getElementById('emptyNotice').style.display = visible === 0 && rows.length > 0 ? 'block' : 'none';
   }
 
   function filterProcess(proc) {
@@ -1049,7 +1056,60 @@
 
   function clearTable() {
     document.getElementById('logTbody').innerHTML = '';
+    counts.all = 0; counts.sudo = 0; counts.authd = 0; counts.sshd = 0;
+    const elAll = document.getElementById('countAll'); if (elAll) elAll.innerText = '0';
+    const elSudo = document.getElementById('countSudo'); if (elSudo) elSudo.innerText = '0';
+    const elAuthd = document.getElementById('countAuthd'); if (elAuthd) elAuthd.innerText = '0';
+    const elSshd = document.getElementById('countSshd'); if (elSshd) elSshd.innerText = '0';
+    const listening = document.getElementById('liveListeningState');
+    if (listening) listening.style.display = 'block';
     applyFilters();
+  }
+
+  async function loadRecentHistory() {
+    const btn = document.getElementById('btnLoadHistory');
+    if (!btn) return;
+    const origText = btn.innerText;
+    btn.innerText = 'Loading…';
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/logs');
+      if (res.ok) {
+        const logs = await res.json();
+        document.getElementById('logTbody').innerHTML = '';
+        counts.all = 0; counts.sudo = 0; counts.authd = 0; counts.sshd = 0;
+        const validLogs = logs.filter(ev => {
+          const cmd = ev.command || '';
+          return !cmd.includes('kTCCServiceUnknown') && !cmd.includes('kTCCServiceAll');
+        });
+        const slice = validLogs.slice(0, 50).reverse();
+        slice.forEach(ev => {
+          addLiveRow({
+            event: {
+              timestamp: ev.timestamp,
+              username: ev.username,
+              process: ev.process,
+              pid: ev.pid,
+              command: ev.command,
+              event_type: ev.event_type,
+              source_ip: ev.source_ip,
+              raw_line: ev.raw_line
+            },
+            process: ev.process,
+            severity: ev.severity,
+            is_novel: ev.is_novel,
+            command: ev.command,
+            reasons: ev.reasons || [],
+            invariants: ev.invariants || []
+          });
+        });
+      }
+    } catch(err) {
+      console.error(err);
+    } finally {
+      btn.innerText = origText;
+      btn.disabled = false;
+    }
   }
 
   function openInspector(row) {
@@ -1151,6 +1211,10 @@
     const timeStr    = formatTime(ts);
     const displayCmd = formatCmd(cmd) || (reasons[0] || ev.event_type || '');
     const actionStr  = invariants[0] || ev.event_type || '';
+
+    // Hide listening state
+    const listening = document.getElementById('liveListeningState');
+    if (listening) listening.style.display = 'none';
 
     counts.all = (counts.all || 0) + 1;
     const elAll = document.getElementById('countAll');

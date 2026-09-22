@@ -475,7 +475,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 timestamp=ts,
                 event_type="login_failure" if is_failed else "sudo_used",
                 username=user,
-                source_ip="127.0.0.1",
+                source_ip="",
                 auth_method="sudo",
                 raw_line=raw_line,
                 process="sudo",
@@ -494,7 +494,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 timestamp=ts,
                 event_type="login_success",
                 username=m.group(1),
-                source_ip="127.0.0.1",
+                source_ip="",
                 auth_method=method,
                 raw_line=raw_line,
                 process="authd",
@@ -512,7 +512,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 timestamp=ts,
                 event_type="login_failure",
                 username=user,
-                source_ip="127.0.0.1",
+                source_ip="",
                 auth_method="system",
                 raw_line=raw_line,
                 process=proc_name or "authd",
@@ -531,7 +531,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 timestamp=ts,
                 event_type="system_auth",
                 username=user,
-                source_ip="127.0.0.1",
+                source_ip="",
                 auth_method="system",
                 raw_line=raw_line,
                 process=client or proc_name,
@@ -542,22 +542,54 @@ class MacOSUnifiedLogAdapter(OSAdapter):
             )
 
         # 6. macOS TCC Permission Grant / Evaluation
-        if "TCC" in subsystem or "tccd" in proc_name or "kTCCService" in msg:
+        if ("TCC" in subsystem or "tccd" in proc_name or "kTCCService" in msg):
+            # Ignore internal routine replies, generic checks without service
             m_svc = re.search(r"(kTCCService[A-Za-z]+)", msg)
-            service = m_svc.group(1) if m_svc else "kTCCServiceUnknown"
-            user = os.environ.get("USER", "system")
+            if not m_svc:
+                return None
+            service = m_svc.group(1)
+            if service in ("kTCCServiceUnknown", "kTCCServiceAll", "kTCCServiceLiverpool"):
+                return None
+
+            # Only emit for meaningful access requests, prompts, or evaluations
+            is_relevant = (
+                "TCCAccessRequest" in msg
+                or "REQUEST_MSG" in msg
+                or "AUTH_VALUE" in msg
+                or "evaluated for" in msg
+                or "access granted" in msg.lower()
+                or "access denied" in msg.lower()
+                or "kTCCServiceScreenCapture" in service
+                or "kTCCServiceMicrophone" in service
+                or "kTCCServiceCamera" in service
+                or "kTCCServiceListenEvent" in service
+                or "kTCCServiceAccessibility" in service
+                or "kTCCServiceSystemPolicyAllFiles" in service
+            )
+            if not is_relevant:
+                return None
+
+            # Extract client application
+            client_m = re.search(r"identifier=([A-Za-z0-9_.-]+)", msg)
+            client = client_m.group(1).split(".")[-1] if client_m else proc_name
+            if client in ("tccd", "system", "TCC") and proc_name not in ("tccd", "system", "TCC"):
+                client = proc_name
+
+            uid = entry.get("userID")
+            user = "root" if uid == 0 else (os.environ.get("USER", "system") if uid else "system")
+
             return AuthEvent(
                 timestamp=ts,
                 event_type="PERMISSION_GRANT",
                 username=user,
-                source_ip="127.0.0.1",
+                source_ip="",
                 auth_method="system",
                 raw_line=raw_line,
-                process=proc_name,
+                process=client,
                 pid=pid,
                 subsystem=subsystem or "com.apple.TCC",
                 category=category or "privacy",
-                command=f"{service} evaluated for {proc_name}",
+                command=f"{service} evaluated for {client}",
                 permission_service=service,
             )
 
