@@ -47,14 +47,22 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html, body {
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
   body {
     font-family: var(--sans);
     background: var(--bg-0);
     color: var(--t1);
     -webkit-font-smoothing: antialiased;
-    min-height: 100vh;
     font-size: 13px;
-    overflow-x: hidden;
   }
 
   /* ── MAC OS WINDOW TOP BAR ───────────────────────────────────── */
@@ -65,8 +73,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    position: sticky;
-    top: 0;
+    flex-shrink: 0;
     z-index: 40;
   }
 
@@ -133,9 +140,10 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 12px;
-    padding: 16px 20px;
+    padding: 14px 20px;
     background: var(--bg-0);
     border-bottom: 1px solid var(--border-0);
+    flex-shrink: 0;
   }
 
   .proc-card {
@@ -198,8 +206,7 @@
     gap: 10px;
     align-items: center;
     justify-content: space-between;
-    position: sticky;
-    top: 45px;
+    flex-shrink: 0;
     z-index: 30;
   }
 
@@ -275,9 +282,14 @@
 
   /* ── CONSOLE TABLE ───────────────────────────────────────────── */
   .table-container {
+    flex: 1;
+    min-height: 0;
     width: 100%;
+    overflow-y: auto;
     overflow-x: auto;
     background: var(--bg-0);
+    position: relative;
+    -webkit-overflow-scrolling: touch;
   }
 
   table.log-table {
@@ -289,9 +301,10 @@
 
   thead th {
     position: sticky;
-    top: 92px;
+    top: 0;
     background: var(--bg-1);
     border-bottom: 1px solid var(--border-1);
+    box-shadow: 0 1px 0 var(--border-1);
     padding: 8px 12px;
     font-weight: 600;
     color: var(--t3);
@@ -615,6 +628,7 @@
           data-score="{{ item.score }}"
           data-ip="{{ item.event.source_ip or '' }}"
           data-asn="{{ item.enrichment.asn if item.enrichment else '' }}"
+          data-search="{{ ((item.process or 'system') ~ ' ' ~ (item.event.pid or '') ~ ' ' ~ (item.event.username or '') ~ ' ' ~ (item.command or '') ~ ' ' ~ (item.reasons[0] if item.reasons else '') ~ ' ' ~ (item.event.event_type or '') ~ ' ' ~ (item.event.source_ip or '')) | lower }}"
           data-json='{{ item.event.raw_line | e }}'
           data-playbook='{{ item.playbook | e }}'
           onclick="openInspector(this)">
@@ -719,32 +733,37 @@
     sshd: parseInt(document.getElementById('countSshd')?.innerText || '0', 10)
   };
 
+  // Helper to match a single row's attributes against current filters
+  function checkRowMatch(proc, sev, isNovel, searchData, q, filterSev) {
+    if (q && !searchData.includes(q)) return false;
+    if (activeProcess !== 'all' && !proc.toLowerCase().includes(activeProcess.toLowerCase())) return false;
+    if (filterSev !== 'all' && sev !== filterSev) return false;
+    if (filterNovelOnly && !isNovel) return false;
+    return true;
+  }
+
   // ── FILTERING ────────────────────────────────────────────────
   function applyFilters() {
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
     const sev = document.getElementById('sevFilter').value;
     const tbody = document.getElementById('logTbody');
-    const rows = tbody.querySelectorAll('tr');
+    const rows = tbody.children;
     let visibleCount = 0;
 
-    rows.forEach(r => {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       const proc = r.getAttribute('data-proc') || '';
       const rSev = r.getAttribute('data-sev') || '';
       const rNovel = r.getAttribute('data-novel') === 'true';
-      const text = (r.innerText || '').toLowerCase();
+      const searchData = r.getAttribute('data-search') || '';
 
-      const matchQ = !q || text.includes(q);
-      const matchProc = activeProcess === 'all' || proc.toLowerCase().includes(activeProcess.toLowerCase());
-      const matchSev = sev === 'all' || rSev === sev;
-      const matchNovel = !filterNovelOnly || rNovel;
-
-      if (matchQ && matchProc && matchSev && matchNovel) {
+      if (checkRowMatch(proc, rSev, rNovel, searchData, q, sev)) {
         r.style.display = '';
         visibleCount++;
       } else {
         r.style.display = 'none';
       }
-    });
+    }
 
     document.getElementById('emptyNotice').style.display = visibleCount === 0 ? 'block' : 'none';
   }
@@ -895,6 +914,8 @@
     tr.setAttribute('data-cmd', cmd);
     tr.setAttribute('data-json', ev.raw_line || '{}');
     tr.setAttribute('data-playbook', item.playbook || '');
+    const searchData = (proc + ' ' + (ev.pid || '') + ' ' + (ev.username || '') + ' ' + cmd + ' ' + reasons.join(' ') + ' ' + invariants.join(' ') + ' ' + (ev.source_ip || '')).toLowerCase();
+    tr.setAttribute('data-search', searchData);
     tr.onclick = function() { openInspector(this); };
 
     tr.innerHTML = `
@@ -908,17 +929,26 @@
       <td>${isNovel ? '<span class="novel-pill">FIRST SEEN</span>' : '<span style="color:var(--t4); font-size:10px;">KNOWN</span>'}</td>
     `;
 
+    // Fast O(1) visibility check for the new incoming row
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const filterSev = document.getElementById('sevFilter').value;
+    if (!checkRowMatch(proc, sev, isNovel, searchData, q, filterSev)) {
+      tr.style.display = 'none';
+    }
+
     tbody.insertBefore(tr, tbody.firstChild);
 
-    // Prune excessive rows to keep browser performant (> 1000 rows)
-    if (tbody.children.length > 1000) {
+    // Keep DOM size lean for smooth 60fps scrolling
+    if (tbody.children.length > 500) {
       tbody.removeChild(tbody.lastChild);
     }
 
-    applyFilters();
-
-    if (autoScroll) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Direct, instant auto-scroll without layout thrashing; only stick if user hasn't scrolled down
+    const container = document.querySelector('.table-container');
+    if (autoScroll && container) {
+      if (container.scrollTop < 60) {
+        container.scrollTop = 0;
+      }
     }
   }
 
