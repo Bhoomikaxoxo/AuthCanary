@@ -3,41 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuthCanary — Forensics Console</title>
+<title>AuthCanary — Triage Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-0: #050505;
     --bg-panel: #0D0D0D;
-    --bg-hover: #121212;
-    --bg-selected: #181818;
-
-    --hairline: #1C1C1C;
-    --hairline-subtle: #141414;
+    --border-hairline: rgba(255, 255, 255, 0.08);
 
     --t-primary: #E8E6E1;
-    --t-secondary: #9E9C96;
     --t-muted: #5C5A54;
 
     --crit: #FF3B3B;
-    --crit-bg: rgba(255, 59, 59, 0.12);
+    --crit-dim: rgba(255, 59, 59, 0.12);
     --crit-border: rgba(255, 59, 59, 0.32);
 
     --warn: #FFB020;
-    --warn-bg: rgba(255, 176, 32, 0.12);
+    --warn-dim: rgba(255, 176, 32, 0.12);
     --warn-border: rgba(255, 176, 32, 0.32);
 
     --note: #4A9EFF;
-    --note-bg: rgba(74, 158, 255, 0.08);
+    --note-dim: rgba(74, 158, 255, 0.12);
+    --note-border: rgba(74, 158, 255, 0.32);
 
-    --serif: 'Newsreader', Garamond, Georgia, serif;
+    --serif: 'Newsreader', Georgia, serif;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   }
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
 
   html, body {
     height: 100vh;
@@ -52,12 +54,13 @@
     font-family: var(--sans);
     -webkit-font-smoothing: antialiased;
     font-size: 13px;
+    line-height: 1.4;
   }
 
   /* ── CONSOLE HEADER ─────────────────────────────────────────── */
   .hdr {
     background: var(--bg-panel);
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--border-hairline);
     padding: 10px 20px;
     display: flex;
     align-items: center;
@@ -73,13 +76,13 @@
   }
 
   .hdr-mark {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: var(--t-secondary);
+    color: var(--t-primary);
   }
 
   .hdr-mark svg {
@@ -96,67 +99,76 @@
     gap: 10px;
   }
 
-  .brand-title {
+  .hdr-title h1 {
     font-family: var(--serif);
     font-size: 20px;
     font-weight: 500;
     letter-spacing: -0.01em;
     color: var(--t-primary);
+    margin: 0;
   }
 
-  .brand-sub {
-    font-size: 12px;
-    color: var(--t-muted);
+  .hdr-title span {
     font-family: var(--sans);
     font-weight: 400;
+    color: var(--t-muted);
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: normal;
   }
 
-  .hdr-host {
-    font-size: 12px;
+  .hdr-host-badge {
     color: var(--t-muted);
+    font-family: var(--sans);
+    font-size: 12px;
+    padding: 0;
     margin-left: 8px;
+    background: transparent;
+    border: none;
   }
 
   /* ── SINGLE-LINE STATUS BAR ─────────────────────────────────── */
   .status-bar {
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--hairline);
-    padding: 8px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--t-secondary);
-    flex-shrink: 0;
-  }
-
-  .status-left, .status-right {
+    background: var(--bg-0);
+    border-bottom: 1px solid var(--border-hairline);
+    padding: 7px 20px;
     display: flex;
     align-items: center;
     gap: 8px;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--t-muted);
+    flex-shrink: 0;
   }
 
-  .status-item strong {
+  .status-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--t-muted);
+  }
+
+  .status-seg strong {
     color: var(--t-primary);
     font-weight: 500;
   }
 
   .status-sep {
-    color: var(--t-muted);
+    color: var(--border-hairline);
     user-select: none;
   }
 
-  .status-live-indicator {
+  .status-live {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    color: var(--t-secondary);
+    color: var(--t-muted);
+    margin-left: 2px;
   }
 
   .pulse-dot {
     width: 6px;
     height: 6px;
-    border-radius: 50%;
     background: #10b981;
     animation: live-pulse 2s infinite ease-in-out;
   }
@@ -170,23 +182,11 @@
     50% { opacity: 0.35; transform: scale(0.8); }
   }
 
-  .status-tally {
-    color: var(--t-muted);
-    cursor: pointer;
-    transition: color 0.15s ease;
-  }
-  .status-tally:hover {
-    color: var(--t-primary);
-  }
-  .status-tally strong {
-    color: var(--t-secondary);
-  }
-
   /* ── CONTROLS TOOLBAR ────────────────────────────────────────── */
   .toolbar {
     padding: 8px 20px;
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--hairline);
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border-hairline);
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -209,18 +209,16 @@
   }
   .search-input {
     width: 100%;
-    background: var(--bg-panel);
-    border: 1px solid var(--hairline);
+    background: var(--bg-0);
+    border: 1px solid var(--border-hairline);
     color: var(--t-primary);
     padding: 5px 10px 5px 28px;
-    border-radius: 0;
     font-size: 12px;
     font-family: var(--sans);
     outline: none;
-    transition: border-color 0.15s ease;
   }
   .search-input:focus {
-    border-color: var(--t-secondary);
+    border-color: var(--t-muted);
   }
   .search-input::placeholder {
     color: var(--t-muted);
@@ -234,43 +232,41 @@
   }
 
   .filter-select {
-    background: var(--bg-panel);
-    border: 1px solid var(--hairline);
+    background: var(--bg-0);
+    border: 1px solid var(--border-hairline);
     color: var(--t-primary);
     padding: 5px 8px;
-    border-radius: 0;
     font-size: 12px;
     font-family: var(--sans);
     outline: none;
     cursor: pointer;
   }
   .filter-select:focus {
-    border-color: var(--t-secondary);
+    border-color: var(--t-muted);
   }
 
   .btn {
-    background: var(--bg-panel);
-    border: 1px solid var(--hairline);
-    color: var(--t-secondary);
+    background: var(--bg-0);
+    border: 1px solid var(--border-hairline);
+    color: var(--t-muted);
     padding: 5px 10px;
-    border-radius: 0;
     font-size: 12px;
     font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: all 0.12s ease;
     font-family: var(--sans);
+    transition: color 0.1s ease, border-color 0.1s ease;
   }
   .btn:hover {
     color: var(--t-primary);
     border-color: var(--t-muted);
   }
   .btn.active {
-    background: var(--bg-selected);
-    border-color: var(--t-secondary);
     color: var(--t-primary);
+    border-color: var(--t-muted);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   /* ── CONSOLE TABLE ───────────────────────────────────────────── */
@@ -296,34 +292,49 @@
     position: sticky;
     top: 0;
     background: var(--bg-panel);
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--border-hairline);
     padding: 7px 12px;
     font-weight: 500;
     color: var(--t-muted);
     font-size: 12px;
     font-family: var(--sans);
-    letter-spacing: normal;
     text-transform: none;
+    letter-spacing: normal;
     z-index: 20;
     user-select: none;
   }
 
   tbody tr {
-    border-bottom: 1px solid var(--hairline-subtle);
+    border-bottom: 1px solid var(--border-hairline);
+    border-left: 2px solid transparent;
     cursor: pointer;
-    transition: background 0.08s ease;
+    background: var(--bg-0);
   }
   tbody tr:hover {
-    background: var(--bg-hover);
+    background: rgba(255, 255, 255, 0.04);
   }
   tbody tr.selected {
-    background: var(--bg-selected) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-left-color: var(--t-primary);
   }
+  tbody tr.selected[data-sev="CRITICAL"] {
+    border-left-color: var(--crit);
+  }
+  tbody tr.selected[data-sev="WARNING"] {
+    border-left-color: var(--warn);
+  }
+  tbody tr.selected[data-sev="NOTICE"] {
+    border-left-color: var(--note);
+  }
+  tbody tr.selected[data-sev="INFO"] {
+    border-left-color: var(--t-muted);
+  }
+
   tbody tr.flash-entry {
     animation: flash-row 1.2s ease-out;
   }
   @keyframes flash-row {
-    0% { background: #1a1a1a; }
+    0% { background: rgba(255, 255, 255, 0.08); }
     100% { background: transparent; }
   }
 
@@ -342,58 +353,59 @@
   }
 
   .tag-time { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
-  .tag-proc { font-family: var(--mono); color: var(--t-primary); font-size: 11px; }
+  .tag-proc { font-family: var(--sans); color: var(--t-primary); font-size: 12px; }
   .tag-pid { font-family: var(--mono); color: var(--t-muted); font-size: 11px; }
   .tag-user { font-family: var(--sans); color: var(--t-primary); font-weight: 500; }
-  .tag-action { font-family: var(--mono); font-size: 11px; color: var(--t-secondary); }
+  .tag-action { font-family: var(--sans); font-size: 12px; color: var(--t-muted); }
 
-  /* ── SEVERITY ACCENTS ────────────────────────────────────────── */
-  /* Only WARNING and CRITICAL get visual badges; NOTICE is clean accent text; INFO is muted */
-  .sev-tag {
+  /* ── SEVERITY BADGES ─────────────────────────────────────────── */
+  .sev-badge {
+    display: inline-block;
     font-size: 11px;
     font-family: var(--sans);
     font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
   }
 
-  .sev-tag.sev-CRITICAL {
+  .sev-badge.sev-CRITICAL {
     color: var(--crit);
-    background: var(--crit-bg);
+    background: var(--crit-dim);
     border: 1px solid var(--crit-border);
     padding: 1px 6px;
-    display: inline-block;
   }
 
-  .sev-tag.sev-WARNING {
+  .sev-badge.sev-WARNING {
     color: var(--warn);
-    background: var(--warn-bg);
+    background: var(--warn-dim);
     border: 1px solid var(--warn-border);
     padding: 1px 6px;
-    display: inline-block;
   }
 
-  .sev-tag.sev-NOTICE {
+  .sev-badge.sev-NOTICE {
     color: var(--note);
-    background: transparent;
-    border: none;
-    padding: 0;
+    background: var(--note-dim);
+    border: 1px solid var(--note-border);
+    padding: 1px 6px;
   }
 
-  .sev-tag.sev-INFO {
+  /* INFO severity: plain muted text, no badge, no border */
+  .sev-badge.sev-INFO {
     color: var(--t-muted);
     background: transparent;
     border: none;
     padding: 0;
   }
 
-  /* Novelty indicators */
-  .novel-tag {
+  .novel-pill {
+    color: var(--t-muted);
     font-family: var(--sans);
     font-size: 11px;
-    color: var(--t-secondary);
-  }
-  .novel-known {
-    color: var(--hairline);
-    font-size: 11px;
+    text-transform: none;
+    letter-spacing: normal;
+    background: transparent;
+    border: none;
+    padding: 0;
   }
 
   /* ── INSPECTOR SLIDE-OUT DRAWER ──────────────────────────────── */
@@ -404,9 +416,9 @@
     width: 520px;
     height: 100vh;
     background: var(--bg-panel);
-    border-left: 1px solid var(--hairline);
+    border-left: 1px solid var(--border-hairline);
     z-index: 50;
-    transition: right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: right 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
   }
@@ -416,7 +428,7 @@
 
   .drawer-header {
     padding: 14px 20px;
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--border-hairline);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -454,7 +466,7 @@
 
   .detail-group {
     background: var(--bg-0);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--border-hairline);
     padding: 12px;
   }
   .detail-label {
@@ -462,8 +474,9 @@
     font-weight: 500;
     color: var(--t-muted);
     margin-bottom: 6px;
-    text-transform: none;
     font-family: var(--sans);
+    text-transform: none;
+    letter-spacing: normal;
   }
   .detail-val {
     font-size: 12px;
@@ -474,7 +487,7 @@
   .detail-code {
     font-family: var(--mono);
     background: var(--bg-panel);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--border-hairline);
     padding: 8px;
     font-size: 11px;
     color: var(--t-primary);
@@ -484,7 +497,7 @@
 
   .playbook-box {
     background: var(--bg-0);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--border-hairline);
     padding: 12px;
   }
   .playbook-box.is-warning {
@@ -502,7 +515,7 @@
   .playbook-text {
     font-family: var(--mono);
     font-size: 11px;
-    color: var(--t-secondary);
+    color: var(--t-muted);
     white-space: pre-wrap;
     line-height: 1.5;
   }
@@ -525,32 +538,29 @@
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
     </div>
     <div class="hdr-title">
-      <span class="brand-title">AuthCanary</span>
-      <span class="brand-sub">SOC Forensics Console</span>
+      <h1>AuthCanary</h1>
+      <span>Triage Console</span>
     </div>
-    <span class="hdr-host">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</span>
+    <div class="hdr-host-badge">{{ host_info.hostname or "localhost" }} ({{ host_info.platform or "Darwin" }})</div>
   </div>
 </header>
 
 <!-- ── SINGLE-LINE STATUS BAR ─────────────────────────────────── -->
 <div class="status-bar">
-  <div class="status-left">
-    <span class="status-item"><strong id="countAll">{{ all_events|length }}</strong> events</span>
-    <span class="status-sep">·</span>
-    <span class="status-item"><strong id="countFim">{{ integrity_alerts }}</strong> FIM alerts</span>
-    <span class="status-sep">·</span>
-    <span class="status-live-indicator">
-      <span id="pulseDot" class="pulse-dot"></span>
-      <span id="liveStatusText">live</span>
-    </span>
-  </div>
-  <div class="status-right">
-    <span class="status-tally" onclick="filterProcess('sudo')" title="Filter sudo events">sudo: <strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong></span>
-    <span class="status-sep">·</span>
-    <span class="status-tally" onclick="filterProcess('authd')" title="Filter authd events">authd: <strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong></span>
-    <span class="status-sep">·</span>
-    <span class="status-tally" onclick="filterProcess('sshd')" title="Filter sshd events">sshd: <strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong></span>
-  </div>
+  <span class="status-seg"><strong id="countAll">{{ all_events|length }}</strong> events</span>
+  <span class="status-sep">·</span>
+  <span class="status-seg"><strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong> sudo</span>
+  <span class="status-sep">·</span>
+  <span class="status-seg"><strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong> authd</span>
+  <span class="status-sep">·</span>
+  <span class="status-seg"><strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong> sshd</span>
+  <span class="status-sep">·</span>
+  <span class="status-seg"><strong>{{ integrity_alerts }}</strong> FIM alerts</span>
+  <span class="status-sep">·</span>
+  <span id="livePill" class="status-live">
+    <span class="pulse-dot"></span>
+    <span id="liveStatusText">live</span>
+  </span>
 </div>
 
 <!-- ── CONTROLS TOOLBAR ───────────────────────────────────────── -->
@@ -605,9 +615,9 @@
         <th style="width: 110px;">Process</th>
         <th style="width: 65px;">PID</th>
         <th style="width: 110px;">User</th>
-        <th style="width: 150px;">Action</th>
+        <th style="width: 150px;">Invariant / action</th>
         <th style="width: 90px;">Severity</th>
-        <th>Event details</th>
+        <th>Command / authorization details</th>
         <th style="width: 90px;">Novelty</th>
       </tr>
     </thead>
@@ -635,7 +645,7 @@
           </span>
         </td>
         <td>
-          <span class="sev-tag sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span>
+          <span class="sev-badge sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span>
         </td>
         <td class="cell-msg">
           {% if item.command %}
@@ -654,9 +664,9 @@
         </td>
         <td>
           {% if item.is_novel %}
-            <span class="novel-tag">first seen</span>
+            <span class="novel-pill">first seen</span>
           {% else %}
-            <span class="novel-known">—</span>
+            <span style="color:var(--t-muted); font-size:11px;">—</span>
           {% endif %}
         </td>
       </tr>
@@ -673,14 +683,14 @@
   <div class="drawer-header">
     <div class="drawer-title">
       <span class="drawer-title-main">Event details</span>
-      <span id="drawerProc" style="font-family:var(--mono); font-size:12px; color:var(--t-secondary);">sudo</span>
-      <span id="drawerSevBadge" class="sev-tag sev-INFO">Info</span>
+      <span id="drawerProc" style="font-family:var(--sans); font-size:12px; color:var(--t-muted);">sudo</span>
+      <span id="drawerSevBadge" class="sev-badge sev-INFO">Info</span>
     </div>
     <button class="btn-close" onclick="closeInspector()">&times;</button>
   </div>
   <div class="drawer-body">
     <div class="detail-group">
-      <div class="detail-label">Timestamp</div>
+      <div class="detail-label">Time</div>
       <div id="drawerTime" class="detail-val" style="font-family:var(--mono);">--</div>
     </div>
 
@@ -688,17 +698,17 @@
       <div class="detail-label">User & process context</div>
       <div class="detail-val">
         User: <strong id="drawerUser" style="color:var(--t-primary);">--</strong><br>
-        Process: <span id="drawerProcName" style="font-family:var(--mono);">--</span> (PID: <span id="drawerPid">--</span>)
+        Process: <span id="drawerProcName" style="font-family:var(--sans);">--</span> (PID: <span id="drawerPid" style="font-family:var(--mono);">--</span>)
       </div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Command / action evaluated</div>
+      <div class="detail-label">Command / authorization details</div>
       <div id="drawerCmd" class="detail-code">--</div>
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Forensic details</div>
+      <div class="detail-label">Invariant / action evaluation</div>
       <div id="drawerInvariantDesc" class="detail-val">--</div>
     </div>
 
@@ -708,7 +718,7 @@
     </div>
 
     <div class="detail-group">
-      <div class="detail-label">Raw system log payload</div>
+      <div class="detail-label">Raw log payload</div>
       <pre id="drawerRawJson" class="detail-code" style="max-height:220px;">{}</pre>
     </div>
   </div>
@@ -776,18 +786,19 @@
   function toggleStreamPause() {
     isPaused = !isPaused;
     const btn = document.getElementById('btnPause');
-    const dot = document.getElementById('pulseDot');
+    const pill = document.getElementById('livePill');
+    const dot = pill ? pill.querySelector('.pulse-dot') : null;
     const text = document.getElementById('liveStatusText');
     if (isPaused) {
       btn.innerText = 'Resume stream';
       btn.classList.add('active');
-      dot.classList.add('paused');
-      text.innerText = 'paused';
+      if (dot) dot.classList.add('paused');
+      if (text) text.innerText = 'paused';
     } else {
       btn.innerText = 'Pause stream';
       btn.classList.remove('active');
-      dot.classList.remove('paused');
-      text.innerText = 'live';
+      if (dot) dot.classList.remove('paused');
+      if (text) text.innerText = 'live';
     }
   }
 
@@ -818,13 +829,13 @@
     document.getElementById('drawerProc').innerText = proc;
     const badge = document.getElementById('drawerSevBadge');
     badge.innerText = sev.charAt(0).toUpperCase() + sev.slice(1).toLowerCase();
-    badge.className = 'sev-tag sev-' + sev;
+    badge.className = 'sev-badge sev-' + sev;
 
     document.getElementById('drawerTime').innerText = time;
     document.getElementById('drawerUser').innerText = user;
     document.getElementById('drawerProcName').innerText = proc;
     document.getElementById('drawerPid').innerText = pid;
-    document.getElementById('drawerCmd').innerText = cmd || '(No command recorded)';
+    document.getElementById('drawerCmd').innerText = cmd || '(No specific command recorded)';
     document.getElementById('drawerInvariantDesc').innerText = row.querySelector('.cell-msg') ? row.querySelector('.cell-msg').innerText : '';
     document.getElementById('drawerPlaybook').innerText = playbook;
 
@@ -927,9 +938,9 @@
       <td class="tag-pid">${ev.pid || '-'}</td>
       <td class="tag-user">${ev.username || 'system'}</td>
       <td><span class="tag-action">${actionDisplay}</span></td>
-      <td><span class="sev-tag sev-${sev}">${sevDisplay}</span></td>
+      <td><span class="sev-badge sev-${sev}">${sevDisplay}</span></td>
       <td class="cell-msg"><span>${cmd ? cmd : (reasons[0] || ev.event_type || '')}</span></td>
-      <td>${isNovel ? '<span class="novel-tag">first seen</span>' : '<span class="novel-known">—</span>'}</td>
+      <td>${isNovel ? '<span class="novel-pill">first seen</span>' : '<span style="color:var(--t-muted); font-size:11px;">—</span>'}</td>
     `;
 
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -940,12 +951,10 @@
 
     tbody.insertBefore(tr, tbody.firstChild);
 
-    // Keep DOM size optimal
     if (tbody.children.length > 500) {
       tbody.removeChild(tbody.lastChild);
     }
 
-    // Auto-scroll anchor
     const container = document.querySelector('.table-container');
     if (autoScroll && container) {
       if (container.scrollTop < 60) {
