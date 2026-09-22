@@ -26,6 +26,8 @@ from ingest.adapters import MacOSUnifiedLogAdapter
 from engine.baseline import Baseline
 from engine.invariants import InvariantEngine
 from engine.novelty import NoveltyTracker
+from engine.process_monitor import ProcessMonitor
+from engine.persistence_monitor import PersistenceMonitor
 
 
 class SystemLogStreamer:
@@ -37,11 +39,14 @@ class SystemLogStreamer:
         self.baseline = Baseline(db_path=db_path)
         self.novelty = NoveltyTracker()
         self.invariants = InvariantEngine(config=self.config)
+        self.process_monitor = ProcessMonitor(baseline=self.baseline)
+        self.persistence_monitor = PersistenceMonitor(baseline=self.baseline)
         self.subscribers: set[queue.Queue] = set()
         self._lock = threading.Lock()
         self._running = False
         self._proc: Optional[subprocess.Popen] = None
         self._thread: Optional[threading.Thread] = None
+        self._poll_thread: Optional[threading.Thread] = None
 
     def subscribe(self) -> queue.Queue:
         """Register a new client queue for live log events."""
@@ -74,6 +79,8 @@ class SystemLogStreamer:
         self._running = True
         self._thread = threading.Thread(target=self._run_stream, daemon=True)
         self._thread.start()
+        self._poll_thread = threading.Thread(target=self._run_monitors_poll, daemon=True)
+        self._poll_thread.start()
 
     def stop(self) -> None:
         """Stop streaming and terminate child processes."""
@@ -84,6 +91,56 @@ class SystemLogStreamer:
             except Exception:
                 pass
 
+    def _run_monitors_poll(self) -> None:
+        """Periodically poll process execution table and persistence paths."""
+        try:
+            self.process_monitor.initialize_snapshot()
+            self.persistence_monitor.initialize_snapshot()
+        except Exception:
+            pass
+
+        while self._running:
+            time.sleep(2.0)
+            if not self._running:
+                break
+            try:
+                # 1. Check newly executed processes
+                for ev in self.process_monitor.poll():
+                    self._process_and_broadcast(ev)
+
+                # 2. Check persistence modifications
+                for ev in self.persistence_monitor.scan():
+                    self._process_and_broadcast(ev)
+            except Exception:
+                pass
+
+    def _process_and_broadcast(self, event) -> None:
+        """Evaluate and broadcast an AuthEvent from any source to connected web clients."""
+        is_novel, novelty_reasons = self.novelty.evaluate(event, None, self.baseline)
+        scored = self.invariants.evaluate(
+            event=event,
+            enrichment=None,
+            baseline=self.baseline,
+            is_novel=is_novel,
+            novelty_reasons=novelty_reasons,
+        )
+        try:
+            self.baseline.record_event(
+                event=event,
+                enrichment=None,
+                score=scored.score,
+                reasons=scored.reasons,
+                signals=scored.signals,
+                severity=scored.severity,
+                invariants=scored.invariants,
+                is_novel=is_novel,
+                command=event.command,
+                process=event.process,
+            )
+        except Exception:
+            pass
+        self.broadcast(scored.to_dict())
+
     def _run_stream(self) -> None:
         """Continuously pipe macOS `log stream` or fallback tail."""
         if platform.system() != "Darwin":
@@ -92,6 +149,7 @@ class SystemLogStreamer:
         predicate = (
             '(process == "sshd") OR '
             '(process == "sudo") OR '
+            '(process == "launchd") OR '
             '(subsystem == "com.apple.Authorization") OR '
             '(subsystem == "com.apple.TCC") OR '
             '(process == "opendirectoryd")'

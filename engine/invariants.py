@@ -64,21 +64,36 @@ class InvariantEngine:
             for s in ("new_asn", "new_ip_new_asn", "novel_remote_origin", "brute_force_burst")
         )
 
+        binary = event.binary_path or (event.command.split()[0] if event.command else "")
+        cmd_full = (event.command or "") + " " + (event.arguments or "")
+        is_suspicious_path = any(
+            binary.startswith(prefix)
+            for prefix in ("/tmp/", "/var/tmp/", "/dev/shm/", "/private/tmp/")
+        )
+
         # ── 1. Check for Critical Invariants ───────────────────────
 
-        # Critical: Multi-stage kill chain (Remote Access -> Sudo Escalation or SSH Key)
+        # Critical: Multi-stage kill chain (Remote Access -> Sudo / Persistence / Suspicious Exec)
         if has_prior_remote_access and (
-            event_type in ("sudo_used", "privilege_elevation")
+            event_type in ("sudo_used", "privilege_elevation", "PERSISTENCE_ADDITION", "PERSISTENCE_MODIFIED")
             or process == "sudo"
             or event_type == "ssh_key_added"
+            or is_suspicious_path
         ):
             severity = "CRITICAL"
             numeric_score = 100
             invariants.append("KILL_CHAIN_ESCALATION")
             reasons.insert(
                 0,
-                f"CRITICAL: Privilege action or persistence preceded by novel remote access within {self.sequence_window_min}m"
+                f"CRITICAL: Action ({event_type or process}) preceded by novel remote access within {self.sequence_window_min}m"
             )
+
+        # Critical: Pipeline execution from network (e.g. curl ... | sh)
+        elif any(tool in cmd_full for tool in ("curl ", "wget ")) and any(sh in cmd_full for sh in ("| sh", "| bash", "| zsh", "|python")):
+            severity = "CRITICAL"
+            numeric_score = 95
+            invariants.append("CURL_BASH_EXECUTION")
+            reasons.append(f"CRITICAL: Direct shell execution from network pipe: {event.command or event.arguments}")
 
         # Critical: SSH key injection
         elif event_type == "ssh_key_added":
@@ -87,12 +102,47 @@ class InvariantEngine:
             invariants.append("UNAUTHORIZED_KEY_ADD")
             reasons.append(f"CRITICAL: New SSH authorized key added for user '{user}'")
 
+        # Critical: Persistence modification in system location
+        elif event_type == "PERSISTENCE_ADDITION" and any(p in (event.persistence_target or "") for p in ("/Library/LaunchDaemons", "/etc/pam.d")):
+            severity = "CRITICAL"
+            numeric_score = 85
+            invariants.append("PERSISTENCE_INJECTION")
+            reasons.append(f"CRITICAL: Root-level persistence item added at '{event.persistence_target}'")
+
         # ── 2. Check for Warning Invariants ────────────────────────
+
+        # Warning: Suspicious execution path (/tmp, /var/tmp)
+        elif is_suspicious_path:
+            severity = "WARNING"
+            numeric_score = 75
+            invariants.append("SUSPICIOUS_EXEC_PATH")
+            reasons.append(f"Process executed from suspicious temporary directory: '{binary}'")
+
+        # Warning: Persistence modification in user location
+        elif event_type in ("PERSISTENCE_ADDITION", "PERSISTENCE_MODIFIED"):
+            severity = "WARNING"
+            numeric_score = 70
+            invariants.append("PERSISTENCE_MODIFIED")
+            reasons.append(f"Persistence modified at '{event.persistence_target}': {event.command or 'file change'}")
+
+        # Warning: Sensitive TCC permission grant
+        elif event_type == "PERMISSION_GRANT" and any(s in (event.permission_service or "") for s in ("Camera", "Microphone", "ScreenCapture", "SystemPolicyAllFiles", "Accessibility")):
+            severity = "WARNING"
+            numeric_score = 65
+            invariants.append("SENSITIVE_PERMISSION_GRANT")
+            reasons.append(f"Sensitive system permission '{event.permission_service}' granted to '{event.process}'")
 
         elif is_novel and (event_type in ("sudo_used", "privilege_elevation") or process == "sudo"):
             severity = "WARNING"
             numeric_score = 65
             invariants.append("NOVEL_SUDO_COMMAND" if event.command else "FIRST_TIME_SUDO_USER")
+
+        elif event_type == "PROCESS_EXEC" and is_novel:
+            severity = "WARNING" if is_novel and user == "root" else "NOTICE"
+            numeric_score = 50 if user == "root" else 20
+            invariants.append("NOVEL_BINARY_EXECUTION" if is_novel else "PROCESS_EXEC")
+            if is_novel and user == "root":
+                reasons.append(f"First-seen binary execution under root: '{binary}'")
 
         elif event_type == "login_success" and is_novel:
             severity = "WARNING"
@@ -130,6 +180,18 @@ class InvariantEngine:
             invariants.append("SUDO_ELEVATION")
             cmd_info = f": {event.command}" if event.command else ""
             reasons.append(f"Privilege elevation (sudo) executed by '{user}'{cmd_info}")
+
+        elif event_type == "PERMISSION_GRANT":
+            severity = "NOTICE"
+            numeric_score = 20
+            invariants.append("PERMISSION_GRANT")
+            reasons.append(f"Permission '{event.permission_service}' evaluated for '{event.process}'")
+
+        elif event_type == "PROCESS_EXEC":
+            severity = "INFO"
+            numeric_score = 5
+            invariants.append("PROCESS_EXEC")
+            reasons.append(f"Process execution '{binary}' (PID: {event.pid})")
 
         # ── 4. Routine / Info Invariants ───────────────────────────
 

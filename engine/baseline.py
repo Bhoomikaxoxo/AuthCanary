@@ -92,6 +92,30 @@ class Baseline:
                     PRIMARY KEY (username, command)
                 );
 
+                CREATE TABLE IF NOT EXISTS seen_binaries (
+                    username    TEXT,
+                    binary_path TEXT,
+                    first_seen  TEXT,
+                    count       INTEGER DEFAULT 1,
+                    PRIMARY KEY (username, binary_path)
+                );
+
+                CREATE TABLE IF NOT EXISTS seen_persistence (
+                    target_path TEXT,
+                    label       TEXT,
+                    hash        TEXT,
+                    first_seen  TEXT,
+                    last_seen   TEXT,
+                    PRIMARY KEY (target_path, hash)
+                );
+
+                CREATE TABLE IF NOT EXISTS seen_tcc_grants (
+                    service     TEXT,
+                    client_id   TEXT,
+                    first_seen  TEXT,
+                    PRIMARY KEY (service, client_id)
+                );
+
                 CREATE TABLE IF NOT EXISTS event_log (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp   TEXT,
@@ -310,6 +334,78 @@ class Baseline:
                 "VALUES (?, ?, ?, 1) "
                 "ON CONFLICT(username, command) DO UPDATE SET count = count + 1",
                 (username, command, now),
+            )
+
+    def is_binary_known(self, username: str, binary_path: str) -> bool:
+        """Check if this user has previously executed this binary."""
+        if not binary_path:
+            return True
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM seen_binaries WHERE username = ? AND binary_path = ?",
+                (username, binary_path),
+            ).fetchone()
+        return row is not None
+
+    def record_binary(self, username: str, binary_path: str, ts: str | None = None) -> None:
+        """Record a binary execution in the baseline."""
+        if not binary_path:
+            return
+        now = ts or datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO seen_binaries (username, binary_path, first_seen, count) "
+                "VALUES (?, ?, ?, 1) "
+                "ON CONFLICT(username, binary_path) DO UPDATE SET count = count + 1",
+                (username, binary_path, now),
+            )
+
+    def is_persistence_known(self, target_path: str, hash_val: str) -> bool:
+        """Check if this persistence target file hash is already known."""
+        if not target_path or not hash_val:
+            return True
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM seen_persistence WHERE target_path = ? AND hash = ?",
+                (target_path, hash_val),
+            ).fetchone()
+        return row is not None
+
+    def record_persistence(self, target_path: str, label: str, hash_val: str, ts: str | None = None) -> None:
+        """Record or update a persistence item in the baseline."""
+        if not target_path or not hash_val:
+            return
+        now = ts or datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO seen_persistence (target_path, label, hash, first_seen, last_seen) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(target_path, hash) DO UPDATE SET last_seen = ?",
+                (target_path, label, hash_val, now, now, now),
+            )
+
+    def is_tcc_grant_known(self, service: str, client_id: str) -> bool:
+        """Check if this TCC permission grant has been seen before."""
+        if not service or not client_id:
+            return True
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM seen_tcc_grants WHERE service = ? AND client_id = ?",
+                (service, client_id),
+            ).fetchone()
+        return row is not None
+
+    def record_tcc_grant(self, service: str, client_id: str, ts: str | None = None) -> None:
+        """Record a TCC permission grant in the baseline."""
+        if not service or not client_id:
+            return
+        now = ts or datetime.now().isoformat()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO seen_tcc_grants (service, client_id, first_seen) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT(service, client_id) DO NOTHING",
+                (service, client_id, now),
             )
 
     def get_process_stats(self) -> dict[str, dict]:

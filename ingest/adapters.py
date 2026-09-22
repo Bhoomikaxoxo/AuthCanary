@@ -541,6 +541,43 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 command=right,
             )
 
+        # 6. macOS TCC Permission Grant / Evaluation
+        if "TCC" in subsystem or "tccd" in proc_name or "kTCCService" in msg:
+            m_svc = re.search(r"(kTCCService[A-Za-z]+)", msg)
+            service = m_svc.group(1) if m_svc else "kTCCServiceUnknown"
+            user = os.environ.get("USER", "system")
+            return AuthEvent(
+                timestamp=ts,
+                event_type="PERMISSION_GRANT",
+                username=user,
+                source_ip="127.0.0.1",
+                auth_method="system",
+                raw_line=raw_line,
+                process=proc_name,
+                pid=pid,
+                subsystem=subsystem or "com.apple.TCC",
+                category=category or "privacy",
+                command=f"{service} evaluated for {proc_name}",
+                permission_service=service,
+            )
+
+        # 7. Process Spawn via launchd / exec
+        if proc_name == "launchd" and any(k in msg for k in ("spawned", "execve", "created")):
+            user = os.environ.get("USER", "system")
+            return AuthEvent(
+                timestamp=ts,
+                event_type="PROCESS_EXEC",
+                username=user,
+                source_ip="127.0.0.1",
+                auth_method="system",
+                raw_line=raw_line,
+                process=proc_name,
+                pid=pid,
+                subsystem=subsystem or "com.apple.launchd",
+                category=category or "process",
+                command=msg.strip()[:120],
+            )
+
         return None
 
 

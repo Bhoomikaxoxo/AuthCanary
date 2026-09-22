@@ -37,9 +37,15 @@ class AuthEvent:
     raw_line: str = ""
     process: str = "system"
     pid: int = 0
+    ppid: int = 0
+    binary_path: str = ""
+    arguments: str = ""
     subsystem: str = ""
     category: str = ""
     command: str = ""
+    persistence_target: str = ""
+    persistence_action: str = ""
+    permission_service: str = ""
 
     def to_dict(self) -> dict:
         return asdict(self)

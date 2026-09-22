@@ -64,5 +64,24 @@ class NoveltyTracker:
         if event.event_type == "ssh_key_added":
             reasons.append(f"New SSH authorized key added for user '{user}'")
 
+        # 6. First-time Binary Execution
+        binary = event.binary_path or (event.command.split()[0] if event.command else "")
+        if event.event_type == "PROCESS_EXEC" and binary and hasattr(baseline, "is_binary_known"):
+            if not baseline.is_binary_known(user, binary):
+                reasons.append(f"First execution of binary '{binary}' by user '{user}'")
+
+        # 7. Novel Persistence Modification
+        if event.event_type in ("PERSISTENCE_ADDITION", "PERSISTENCE_MODIFIED") and event.persistence_target:
+            reasons.append(
+                f"Persistence modification at '{event.persistence_target}'"
+                + (f" ({event.command})" if event.command else "")
+            )
+
+        # 8. Novel Sensitive Permission Grant (TCC)
+        if event.event_type == "PERMISSION_GRANT" and event.permission_service and hasattr(baseline, "is_tcc_grant_known"):
+            client = event.process or event.username
+            if not baseline.is_tcc_grant_known(event.permission_service, client):
+                reasons.append(f"First permission grant of '{event.permission_service}' to '{client}'")
+
         is_novel = len(reasons) > 0
         return is_novel, reasons
