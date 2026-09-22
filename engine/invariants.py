@@ -125,12 +125,23 @@ class InvariantEngine:
             invariants.append("PERSISTENCE_MODIFIED")
             reasons.append(f"Persistence modified at '{event.persistence_target}': {event.command or 'file change'}")
 
-        # Warning: Sensitive TCC permission grant
+        # Warning: Sensitive TCC permission grant (Screen capture, Camera, Mic, Accessibility)
         elif event_type == "PERMISSION_GRANT" and any(s in (event.permission_service or "") for s in ("Camera", "Microphone", "ScreenCapture", "SystemPolicyAllFiles", "Accessibility")):
-            severity = "WARNING"
-            numeric_score = 65
-            invariants.append("SENSITIVE_PERMISSION_GRANT")
-            reasons.append(f"Sensitive system permission '{event.permission_service}' granted to '{event.process}'")
+            # Routine Apple first-party utilities for screenshots and recordings
+            is_apple_screenshot_daemon = (
+                ("ScreenCapture" in (event.permission_service or "") or "ListenEvent" in (event.permission_service or ""))
+                and process in ("screencapture", "screencaptureui", "replayd", "tccd", "ControlCenter", "SystemUIServer")
+            )
+            if is_apple_screenshot_daemon:
+                severity = "NOTICE"
+                numeric_score = 20
+                invariants.append("SYSTEM_PERMISSION_EVAL")
+                reasons.append(f"macOS native screenshot utility '{process}' evaluated '{event.permission_service}'")
+            else:
+                severity = "WARNING"
+                numeric_score = 65
+                invariants.append("SENSITIVE_PERMISSION_GRANT")
+                reasons.append(f"Sensitive system permission '{event.permission_service}' granted to '{event.process}'")
 
         elif is_novel and (event_type in ("sudo_used", "privilege_elevation") or process == "sudo"):
             severity = "WARNING"

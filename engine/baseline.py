@@ -631,6 +631,27 @@ class Baseline:
                         (event.username, effective_cmd, now),
                     )
 
+            # Update seen binaries
+            if event.event_type == "PROCESS_EXEC":
+                bin_path = getattr(event, "binary_path", "") or (effective_cmd.split()[0] if effective_cmd else "")
+                if bin_path:
+                    conn.execute(
+                        "INSERT INTO seen_binaries (username, binary_path, first_seen, count) "
+                        "VALUES (?, ?, ?, 1) "
+                        "ON CONFLICT(username, binary_path) DO UPDATE SET count = count + 1",
+                        (event.username, bin_path, now),
+                    )
+
+            # Update seen TCC grants
+            if event.event_type == "PERMISSION_GRANT" and getattr(event, "permission_service", ""):
+                client = effective_proc or event.username or "system"
+                conn.execute(
+                    "INSERT INTO seen_tcc_grants (service, client_id, first_seen) "
+                    "VALUES (?, ?, ?) "
+                    "ON CONFLICT(service, client_id) DO NOTHING",
+                    (event.permission_service, client, now),
+                )
+
         self.increment_event_count()
 
     def get_stats(self) -> dict:

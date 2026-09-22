@@ -180,6 +180,7 @@ def test_invariants_sensitive_permission_grant():
         baseline = Baseline(tmp.name)
         engine = InvariantEngine()
 
+        # Untrusted app accessing camera -> WARNING
         ev = AuthEvent(
             timestamp=datetime.now().isoformat(),
             event_type="PERMISSION_GRANT",
@@ -191,4 +192,17 @@ def test_invariants_sensitive_permission_grant():
 
         assert scored.severity == "WARNING"
         assert "SENSITIVE_PERMISSION_GRANT" in scored.invariants
+
+        # Native macOS screenshot utility -> NOTICE (SYSTEM_PERMISSION_EVAL)
+        ev_ss = AuthEvent(
+            timestamp=datetime.now().isoformat(),
+            event_type="PERMISSION_GRANT",
+            username="mika",
+            process="screencaptureui",
+            permission_service="kTCCServiceScreenCapture",
+        )
+        scored_ss = engine.evaluate(ev_ss, None, baseline, is_novel=True)
+        assert scored_ss.severity == "NOTICE"
+        assert "SYSTEM_PERMISSION_EVAL" in scored_ss.invariants
+
 
