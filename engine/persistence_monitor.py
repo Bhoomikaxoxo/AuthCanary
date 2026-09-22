@@ -67,7 +67,7 @@ class PersistenceMonitor:
         """Scan persistence locations and emit AuthEvent for any additions or alterations."""
         events: list[AuthEvent] = []
         current = self._scan_all()
-        now = datetime.now().isoformat()
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         current_user = os.environ.get("USER", "system")
 
         if not self._initialized:

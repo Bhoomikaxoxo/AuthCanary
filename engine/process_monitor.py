@@ -48,7 +48,7 @@ class ProcessMonitor:
         """Poll the host process table and emit AuthEvent for any newly spawned processes."""
         events: list[AuthEvent] = []
         current = self._fetch_process_table()
-        now = datetime.now().isoformat()
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
         if not self._initialized:
             self.initialize_snapshot()
@@ -72,7 +72,7 @@ class ProcessMonitor:
 
     def parse_log_line(self, raw_line: str, timestamp: str = "") -> Optional[AuthEvent]:
         """Parse execution events from macOS unified log stream (e.g. launchd/execve)."""
-        ts = timestamp or datetime.now().isoformat()
+        ts = timestamp or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         # Look for execve or spawned process patterns
         if "spawned" in raw_line or "execve" in raw_line:
             # Extract process name and pid if available
@@ -93,8 +93,8 @@ class ProcessMonitor:
         """Query host process table via ps."""
         procs: list[dict] = []
         try:
-            # -A: all processes, -o: specific columns
-            cmd = ["ps", "-A", "-o", "pid,ppid,user,comm,args"]
+            # -A: all processes, -o: specific columns. Avoid BSD 'comm' 16-char truncation
+            cmd = ["ps", "-A", "-o", "pid,ppid,user,args"]
             res = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -109,22 +109,22 @@ class ProcessMonitor:
             if len(lines) <= 1:
                 return []
 
-            # First line is header: PID  PPID USER COMM ARGS
+            # First line is header: PID  PPID USER ARGS
             for line in lines[1:]:
-                parts = line.strip().split(None, 4)
+                parts = line.strip().split(None, 3)
                 if len(parts) < 4:
                     continue
                 try:
                     pid = int(parts[0])
                     ppid = int(parts[1])
                     user = parts[2]
-                    comm = parts[3]
-                    args = parts[4] if len(parts) > 4 else comm
+                    args = parts[3]
 
                     # Ignore ps commands spawned by this monitor and self-children
-                    if comm == "ps" or comm.endswith("/ps") or "ps -A -o" in args or ppid == os.getpid():
+                    if args.startswith("ps ") or "ps -A -o" in args or ppid == os.getpid():
                         continue
 
+                    comm = args.split()[0] if args else ""
                     procs.append({
                         "pid": pid,
                         "ppid": ppid,
@@ -144,12 +144,13 @@ class ProcessMonitor:
         args = p.get("args", "")
         binary_path = self._extract_binary_path(comm, args)
         user = p.get("user", "system")
+        proc_name = self._clean_process_name(comm, binary_path, args)
 
         return AuthEvent(
             timestamp=ts,
             event_type="PROCESS_EXEC",
             username=user,
-            process=Path(comm).name if comm else "process",
+            process=proc_name,
             pid=p.get("pid", 0),
             ppid=p.get("ppid", 0),
             binary_path=binary_path,
@@ -159,15 +160,48 @@ class ProcessMonitor:
         )
 
     @staticmethod
+    def _clean_process_name(comm: str, binary_path: str, args: str) -> str:
+        """Derive clean human-readable process name without path prefixes or truncation.
+
+        Example:
+            /System/Library/Frameworks/WebKit.framework/.../com.apple.WebKit.WebContent
+            -> WebContent
+        """
+        candidate = binary_path or comm or (args.split()[0] if args else "process")
+        base = os.path.basename(candidate.rstrip("/"))
+        if not base:
+            base = candidate
+
+        # Handle reverse-DNS bundle IDs e.g. com.apple.WebKit.WebContent -> WebContent
+        if "." in base and (base.startswith("com.") or base.startswith("org.")):
+            parts = base.split(".")
+            if len(parts) > 1 and parts[-1]:
+                return parts[-1]
+
+        # Recovery if base was a path component
+        if base in ("Library", "Frameworks", "Framewo", "Contents", "MacOS", "Support", "Versions"):
+            if args:
+                first = args.split()[0]
+                better = os.path.basename(first.rstrip("/"))
+                if better and better not in ("Library", "Frameworks", "Framewo", "Contents", "MacOS", "Support", "Versions"):
+                    if "." in better and (better.startswith("com.") or better.startswith("org.")):
+                        return better.split(".")[-1]
+                    return better
+
+        return base or "process"
+
+    @staticmethod
     def _extract_binary_path(comm: str, args: str) -> str:
         """Resolve actual executed binary path from comm and command args."""
-        if comm and comm.startswith("/"):
-            return comm
         if args:
             try:
                 tokens = shlex.split(args)
                 if tokens and tokens[0].startswith("/"):
                     return tokens[0]
             except ValueError:
-                pass
-        return comm
+                first = args.split()[0] if args.split() else ""
+                if first.startswith("/"):
+                    return first
+        if comm and comm.startswith("/"):
+            return comm
+        return comm or (args.split()[0] if args else "")

@@ -3,340 +3,870 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuthCanary — Triage Console</title>
+<title>AuthCanary — macOS Security Triage Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-0: #050505;
-    --bg-panel: #0D0D0D;
-    --border-hairline: rgba(255, 255, 255, 0.08);
-    --hover-wash: rgba(255, 255, 255, 0.035);
+    --bg-base:      #08090C;
+    --bg-surface:   #0E1015;
+    --bg-card:      #13161D;
+    --bg-input:     #171A23;
+    --bg-hover:     rgba(255, 255, 255, 0.04);
 
-    --t-primary: #E8E6E1;
-    --t-muted: #5C5A54;
-    --t-faint: #38362F;
+    --border:       rgba(255, 255, 255, 0.07);
+    --border-subtle: rgba(255, 255, 255, 0.04);
+    --border-focus: rgba(255, 255, 255, 0.18);
 
-    --crit: #FF3B3B;
-    --warn: #FFB020;
-    --note: #4A9EFF;
+    --t-primary:    #F0F1F3;
+    --t-secondary:  #9BA1AD;
+    --t-muted:      #5E6573;
+    --t-faint:      #383D47;
 
-    --serif: 'Fraunces', Georgia, serif;
-    --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --crit:         #FF4545;
+    --crit-bg:      rgba(255, 69, 69, 0.12);
+    --crit-border:  rgba(255, 69, 69, 0.28);
+
+    --warn:         #F59E0B;
+    --warn-bg:      rgba(245, 158, 11, 0.12);
+    --warn-border:  rgba(245, 158, 11, 0.28);
+
+    --note:         #38BDF8;
+    --note-bg:      rgba(56, 189, 248, 0.12);
+    --note-border:  rgba(56, 189, 248, 0.28);
+
+    --info:         #828997;
+    --info-bg:      rgba(130, 137, 151, 0.08);
+    --info-border:  rgba(130, 137, 151, 0.18);
+
+    --live-green:   #10B981;
+    --live-glow:    rgba(16, 185, 129, 0.35);
+
+    --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono:    'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --font-serif:   'Fraunces', Georgia, serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: var(--bg-0); }
-  ::-webkit-scrollbar-thumb { background: var(--t-faint); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--t-muted); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-base); }
+  ::-webkit-scrollbar-thumb { background: #232733; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #323747; }
 
   html, body {
-    height: 100vh; height: 100dvh;
+    height: 100vh;
     overflow: hidden;
-    display: flex; flex-direction: column;
-    background: var(--bg-0);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-base);
     color: var(--t-primary);
-    font-family: var(--sans);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     font-size: 13px;
     line-height: 1.4;
   }
 
-  /* ── HEADER — the one designed moment ───────────────────────── */
-  .hdr {
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--border-hairline);
-    padding: 16px 22px 14px;
+  /* TOP HEADER */
+  .top-bar {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
+    gap: 16px;
   }
-  .hdr-left { display: flex; align-items: baseline; gap: 14px; }
-  .hdr-mark {
-    width: 20px; height: 20px;
-    display: inline-flex; align-items: center; justify-content: center;
-    color: var(--t-primary);
-    position: relative;
-    top: 3px;
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
   }
-  .hdr-mark svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.5; }
-  .hdr-title-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-  .hdr-title-row h1 {
-    font-family: var(--serif);
+  .brand-logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-wordmark {
+    font-family: var(--font-serif);
     font-optical-sizing: auto;
-    font-size: 25px;
+    font-size: 20px;
     font-weight: 600;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
     color: var(--t-primary);
+    line-height: 1;
   }
-  .hdr-sub { font-size: 13px; color: var(--t-muted); font-style: italic; font-family: var(--serif); }
-  .hdr-host { font-size: 12px; color: var(--t-faint); font-family: var(--mono); }
+  .brand-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--t-secondary);
+    padding: 3px 7px;
+    border-radius: 4px;
+  }
+  .brand-desc {
+    font-size: 11.5px;
+    color: var(--t-muted);
+    border-left: 1px solid var(--border);
+    padding-left: 14px;
+  }
 
-  .live-indicator {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12px; color: var(--t-muted);
-    font-family: var(--mono);
+  .top-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
-  .pulse-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #2FBF71;
-    animation: live-pulse 2s infinite ease-in-out;
+  .host-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--t-secondary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
   }
-  .pulse-dot.paused { background: var(--warn); animation: none; }
-  @keyframes live-pulse {
+  .host-icon {
+    opacity: 0.6;
+  }
+
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--live-green);
+    background: rgba(16, 185, 129, 0.09);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 4px 11px;
+    border-radius: 20px;
+    letter-spacing: 0.03em;
+  }
+  .live-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--live-green);
+    box-shadow: 0 0 8px var(--live-green);
+    animation: livePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .live-pill.paused {
+    color: var(--warn);
+    background: var(--warn-bg);
+    border-color: var(--warn-border);
+  }
+  .live-pill.paused .live-pulse {
+    background: var(--warn);
+    box-shadow: none;
+    animation: none;
+  }
+  @keyframes livePulse {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.3; transform: scale(0.75); }
+    50% { opacity: 0.35; transform: scale(0.85); }
   }
 
-  /* ── STATUS LINE — replaces the 5 stat cards ────────────────── */
-  .status-bar {
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border-hairline);
-    padding: 8px 22px;
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    font-size: 12.5px; color: var(--t-muted);
+  /* TELEMETRY KPI METRICS BAR */
+  .metrics-strip {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     flex-shrink: 0;
+    overflow-x: auto;
   }
-  .status-bar strong { color: var(--t-primary); font-weight: 600; font-family: var(--mono); }
-  .status-sep { color: var(--t-faint); }
-  .status-alert strong { color: var(--warn); }
+  .metric-card {
+    flex: 1;
+    min-width: 140px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .metric-card:hover {
+    border-color: var(--border-focus);
+    background: #171a22;
+  }
+  .metric-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .metric-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--t-muted);
+  }
+  .metric-pip {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--t-faint);
+  }
+  .metric-card.active .metric-pip {
+    background: var(--note);
+    box-shadow: 0 0 6px var(--note);
+  }
+  .metric-card.alert .metric-pip {
+    background: var(--warn);
+    box-shadow: 0 0 6px var(--warn);
+  }
+  .metric-num {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--t-primary);
+    line-height: 1.2;
+  }
+  .metric-card.alert .metric-num {
+    color: var(--warn);
+  }
 
-  /* ── TOOLBAR ─────────────────────────────────────────────────── */
+  /* TOOLBAR */
   .toolbar {
-    padding: 10px 22px;
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--border-hairline);
-    display: flex; flex-wrap: wrap; gap: 8px;
-    align-items: center; justify-content: space-between;
+    padding: 10px 24px;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
     flex-shrink: 0;
   }
-  .toolbar-left, .toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
 
-  .search-box { position: relative; width: 260px; }
+  .search-wrap {
+    position: relative;
+    width: 280px;
+  }
   .search-input {
     width: 100%;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-hairline);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
     color: var(--t-primary);
-    padding: 6px 10px 6px 30px;
-    font-size: 12.5px;
+    padding: 7px 32px 7px 30px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
     outline: none;
-    transition: border-color .12s ease;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .search-input:focus { border-color: var(--t-muted); }
-  .search-input::placeholder { color: var(--t-faint); }
-  .search-icon { position: absolute; left: 9px; top: 8px; color: var(--t-faint); pointer-events: none; }
+  .search-input::placeholder { color: var(--t-muted); }
+  .search-input:focus {
+    border-color: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+  }
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--t-muted);
+    pointer-events: none;
+  }
+  .search-shortcut {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--t-muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+    pointer-events: none;
+  }
 
-  .filter-select {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-hairline);
-    color: var(--t-primary);
-    padding: 6px 9px;
-    font-size: 12.5px;
-    outline: none;
-    cursor: pointer;
+  .select-wrapper {
+    position: relative;
+    display: inline-block;
   }
-  .filter-select:focus { border-color: var(--t-muted); }
+  .select-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 4.5px solid var(--t-muted);
+    pointer-events: none;
+  }
+  .ctrl-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--t-secondary);
+    padding: 6px 28px 6px 11px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.15s;
+  }
+  .ctrl-select:hover {
+    border-color: var(--border-focus);
+    color: var(--t-primary);
+  }
+  .ctrl-select:focus {
+    border-color: rgba(255, 255, 255, 0.25);
+  }
 
   .btn {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-hairline);
-    color: var(--t-muted);
-    padding: 6px 12px;
-    font-size: 12.5px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--t-secondary);
+    padding: 6px 13px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    display: inline-flex; align-items: center; gap: 6px;
-    transition: color .1s ease, border-color .1s ease, background .1s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    outline: none;
+    transition: all 0.15s;
+    user-select: none;
   }
-  .btn:hover { color: var(--t-primary); border-color: var(--t-muted); }
-  .btn.active { color: var(--note); border-color: var(--note); background: rgba(74,158,255,0.08); }
-
-  /* ── TABLE — the hero ────────────────────────────────────────── */
-  .table-container {
-    flex: 1; min-height: 0; width: 100%;
-    overflow: auto;
-    background: var(--bg-0);
-    -webkit-overflow-scrolling: touch;
+  .btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-focus);
+    color: var(--t-primary);
+  }
+  .btn.active, .btn.on {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: var(--note);
+  }
+  .btn-danger:hover {
+    background: rgba(255, 69, 69, 0.1);
+    border-color: rgba(255, 69, 69, 0.35);
+    color: var(--crit);
   }
 
-  table.log-table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; }
+  /* LOG TABLE CONTAINER */
+  .table-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: auto;
+    background: var(--bg-base);
+  }
+  table.log {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: left;
+    table-layout: fixed;
+  }
+  col.col-time   { width: 88px; }
+  col.col-proc   { width: 130px; }
+  col.col-pid    { width: 62px; }
+  col.col-user   { width: 90px; }
+  col.col-action { width: 160px; }
+  col.col-sev    { width: 90px; }
+  col.col-msg    { width: auto; }
+  col.col-novel  { width: 70px; }
 
   thead th {
-    position: sticky; top: 0;
-    background: var(--bg-0);
-    border-bottom: 1px solid var(--border-hairline);
-    padding: 9px 14px;
-    font-weight: 500;
-    color: var(--t-faint);
-    font-size: 12px;
+    position: sticky;
+    top: 0;
     z-index: 20;
+    background: #0B0D12;
+    border-bottom: 1px solid var(--border);
+    padding: 9px 12px;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--t-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     user-select: none;
+    white-space: nowrap;
   }
 
   tbody tr {
-    border-bottom: 1px solid var(--border-hairline);
-    border-left: 2px solid transparent;
+    border-bottom: 1px solid var(--border-subtle);
+    border-left: 3px solid transparent;
+    transition: background 0.08s, border-left-color 0.08s;
     cursor: pointer;
   }
-  tbody tr:hover { background: var(--hover-wash); }
-  tbody tr.selected { background: var(--hover-wash); border-left-color: var(--t-primary); }
-  tbody tr.selected[data-sev="CRITICAL"] { border-left-color: var(--crit); }
-  tbody tr.selected[data-sev="WARNING"]  { border-left-color: var(--warn); }
-  tbody tr.selected[data-sev="NOTICE"]   { border-left-color: var(--note); }
-  tbody tr.selected[data-sev="INFO"]     { border-left-color: var(--t-muted); }
+  tbody tr:hover {
+    background: var(--bg-hover);
+  }
+  tbody tr[data-sev="CRITICAL"] { border-left-color: var(--crit); }
+  tbody tr[data-sev="WARNING"]  { border-left-color: var(--warn); }
+  tbody tr[data-sev="NOTICE"]   { border-left-color: var(--note); }
+  tbody tr[data-sev="INFO"]     { border-left-color: transparent; }
 
-  tbody tr.flash-entry { animation: flash-row 1s ease-out; }
-  @keyframes flash-row {
-    0% { background: rgba(255, 255, 255, 0.07); }
+  tbody tr.selected {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  tbody tr.selected[data-sev="CRITICAL"] { background: rgba(255, 69, 69, 0.08); }
+  tbody tr.selected[data-sev="WARNING"]  { background: rgba(245, 158, 11, 0.08); }
+  tbody tr.selected[data-sev="NOTICE"]   { background: rgba(56, 189, 248, 0.08); }
+
+  tbody tr.row-new {
+    animation: rowFlash 1.2s ease-out;
+  }
+  @keyframes rowFlash {
+    0%   { background: rgba(56, 189, 248, 0.16); }
     100% { background: transparent; }
   }
 
-  td { padding: 7px 14px; white-space: nowrap; vertical-align: middle; }
-  td.cell-msg {
-    white-space: normal; word-break: break-all; max-width: 560px;
-    font-family: var(--mono); font-size: 11.5px; color: var(--t-primary);
+  td {
+    padding: 7px 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    color: var(--t-secondary);
+  }
+  td.c-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--t-muted);
+  }
+  td.c-proc {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t-primary);
+  }
+  td.c-pid {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--t-muted);
+  }
+  td.c-user {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #CBD5E1;
+  }
+  td.c-action {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--t-secondary);
+  }
+  td.c-msg {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--t-primary);
+    max-width: 0;
   }
 
-  .tag-time { font-family: var(--mono); color: var(--t-faint); font-size: 11.5px; }
-  .tag-proc { color: var(--t-primary); font-weight: 500; }
-  .tag-pid  { font-family: var(--mono); color: var(--t-faint); font-size: 11.5px; }
-  .tag-user { color: var(--t-primary); }
-  .tag-action { color: var(--t-muted); }
+  /* SEVERITY BADGES */
+  .sev-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    line-height: 1.3;
+    text-transform: lowercase;
+  }
+  .sev-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
 
-  /* ── SEVERITY — the only color in the whole app ─────────────── */
-  .sev-badge { display: inline-block; font-size: 11px; font-weight: 600; }
-  .sev-badge.sev-CRITICAL { color: var(--crit); border: 1px solid rgba(255,59,59,.35);  padding: 1px 7px; }
-  .sev-badge.sev-WARNING  { color: var(--warn); border: 1px solid rgba(255,176,32,.35); padding: 1px 7px; }
-  .sev-badge.sev-NOTICE   { color: var(--note); border: 1px solid rgba(74,158,255,.35); padding: 1px 7px; }
-  .sev-badge.sev-INFO     { color: var(--t-faint); font-weight: 400; }
+  .sev-CRITICAL {
+    color: var(--crit);
+    background: var(--crit-bg);
+    border: 1px solid var(--crit-border);
+  }
+  .sev-CRITICAL .sev-dot { background: var(--crit); box-shadow: 0 0 5px var(--crit); }
 
-  .novel-pill { color: var(--note); font-size: 11px; font-weight: 500; }
-  .known-dash { color: var(--t-faint); font-size: 11px; }
+  .sev-WARNING {
+    color: var(--warn);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+  }
+  .sev-WARNING .sev-dot { background: var(--warn); box-shadow: 0 0 5px var(--warn); }
 
-  /* ── DRAWER ──────────────────────────────────────────────────── */
-  .drawer-overlay {
-    position: fixed; top: 0; right: -540px; width: 500px; height: 100vh;
-    background: var(--bg-panel);
-    border-left: 1px solid var(--border-hairline);
+  .sev-NOTICE {
+    color: var(--note);
+    background: var(--note-bg);
+    border: 1px solid var(--note-border);
+  }
+  .sev-NOTICE .sev-dot { background: var(--note); }
+
+  .sev-INFO {
+    color: var(--info);
+    background: var(--info-bg);
+    border: 1px solid var(--info-border);
+  }
+  .sev-INFO .sev-dot { background: var(--info); }
+
+  /* NOVEL TAG */
+  .novel-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #38BDF8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .seen-dash {
+    color: var(--t-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* EMPTY STATE NOTICE */
+  .empty {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--t-muted);
+    font-size: 13px;
+  }
+  .empty-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+  }
+
+  /* INSPECTOR DRAWER */
+  .drawer-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 45;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .drawer-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: -540px;
+    width: 500px;
+    height: 100vh;
+    background: #0F1218;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
     z-index: 50;
-    transition: right .22s cubic-bezier(.16,1,.3,1);
-    display: flex; flex-direction: column;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .drawer-overlay.open { right: 0; }
+  .drawer.open { right: 0; }
 
-  .drawer-header {
-    padding: 16px 22px;
-    border-bottom: 1px solid var(--border-hairline);
-    display: flex; justify-content: space-between; align-items: center;
+  .drawer-hdr {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-shrink: 0;
+    background: #13171F;
   }
-  .drawer-title { display: flex; align-items: baseline; gap: 10px; }
-  .drawer-title-main { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--t-primary); }
-  .btn-close { background: transparent; border: none; color: var(--t-faint); font-size: 20px; cursor: pointer; line-height: 1; }
-  .btn-close:hover { color: var(--t-primary); }
-
-  .drawer-body { padding: 22px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
-
-  .detail-group { border: 1px solid var(--border-hairline); padding: 13px; }
-  .detail-label { font-size: 11px; font-weight: 500; color: var(--t-faint); margin-bottom: 6px; }
-  .detail-val { font-size: 12.5px; color: var(--t-primary); word-break: break-all; line-height: 1.6; }
-  .detail-code {
-    font-family: var(--mono); background: var(--bg-0);
-    border: 1px solid var(--border-hairline);
-    padding: 9px; font-size: 11.5px; color: var(--t-primary);
-    overflow-x: auto; line-height: 1.5;
+  .drawer-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--t-primary);
+  }
+  .drawer-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--t-secondary);
+    margin-top: 4px;
+  }
+  .drawer-close {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--t-secondary);
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .drawer-close:hover {
+    color: var(--t-primary);
+    border-color: var(--border-focus);
+    background: #1C212D;
   }
 
-  .playbook-box { border: 1px solid var(--border-hairline); padding: 13px; }
-  .playbook-box.is-warning  { border-color: rgba(255,176,32,.35); }
-  .playbook-box.is-critical { border-color: rgba(255,59,59,.35); }
-  .playbook-title { color: var(--t-primary); font-weight: 500; font-size: 12.5px; margin-bottom: 6px; }
-  .playbook-text { font-family: var(--mono); font-size: 11.5px; color: var(--t-muted); white-space: pre-wrap; line-height: 1.6; }
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .dg {
+    background: #141720;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .dg-label {
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--t-muted);
+    margin-bottom: 6px;
+  }
+  .dg-val {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--t-primary);
+    line-height: 1.5;
+    word-break: break-all;
+  }
+  .dg-code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: #CBD5E1;
+    background: #090B0E;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.55;
+  }
 
-  .empty-state { text-align: center; padding: 70px 20px; color: var(--t-faint); font-size: 13px; }
+  .pb-box {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .pb-box.is-warn {
+    border-left-color: var(--warn);
+    background: rgba(245, 158, 11, 0.05);
+  }
+  .pb-box.is-crit {
+    border-left-color: var(--crit);
+    background: rgba(255, 69, 69, 0.05);
+  }
+  .pb-label {
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--t-muted);
+    margin-bottom: 6px;
+  }
+  .pb-text {
+    font-size: 12px;
+    color: var(--t-secondary);
+    white-space: pre-wrap;
+    line-height: 1.6;
+  }
+
+  /* BOTTOM STATUS BAR */
+  .status-footer {
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border);
+    padding: 6px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--t-muted);
+    font-family: var(--font-mono);
+  }
+  .status-left, .status-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .status-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--t-faint);
+  }
+  .status-dot.active {
+    background: var(--live-green);
+    box-shadow: 0 0 5px var(--live-green);
+  }
 </style>
 </head>
 <body>
 
-<header class="hdr">
-  <div class="hdr-left">
-    <div class="hdr-mark">
-      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+<!-- TOP BAR -->
+<header class="top-bar">
+  <div class="brand-group">
+    <div class="brand-logo-wrap">
+      <span class="brand-wordmark">AuthCanary</span>
+      <span class="brand-badge">SOC Triage</span>
     </div>
-    <div class="hdr-title-row">
-      <h1>AuthCanary</h1>
-      <span class="hdr-sub">triage console</span>
-      <span class="hdr-host">{{ host_info.hostname or "localhost" }} · {{ host_info.platform or "Darwin" }}</span>
+    <span class="brand-desc">macOS Real-time Security Invariant &amp; Activity Monitor</span>
+  </div>
+  <div class="top-right">
+    <div class="host-chip">
+      <span class="host-icon"></span>
+      <span>{{ host_info.hostname or 'localhost' }}</span>
+      <span style="color:var(--t-faint);">&middot;</span>
+      <span>{{ host_info.platform or 'Darwin' }}</span>
+    </div>
+    <div id="livePill" class="live-pill">
+      <span class="live-pulse"></span>
+      <span id="liveStatusText">LIVE</span>
     </div>
   </div>
-  <span id="livePill" class="live-indicator">
-    <span class="pulse-dot"></span>
-    <span id="liveStatusText">live</span>
-  </span>
 </header>
 
-<div class="status-bar">
-  <span><strong id="countAll">{{ all_events|length }}</strong> events</span>
-  <span class="status-sep">·</span>
-  <span><strong id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</strong> sudo</span>
-  <span class="status-sep">·</span>
-  <span><strong id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</strong> authd</span>
-  <span class="status-sep">·</span>
-  <span><strong id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</strong> sshd</span>
-  <span class="status-sep">·</span>
-  <span class="{{ 'status-alert' if integrity_alerts and integrity_alerts > 0 else '' }}"><strong>{{ integrity_alerts }}</strong> FIM alerts</span>
-</div>
+<!-- TELEMETRY KPI METRICS BAR -->
+<section class="metrics-strip">
+  <div class="metric-card active">
+    <div class="metric-header">
+      <span class="metric-label">Streamed Events</span>
+      <span class="metric-pip"></span>
+    </div>
+    <span class="metric-num" id="countAll">{{ all_events|length }}</span>
+  </div>
+  <div class="metric-card">
+    <div class="metric-header">
+      <span class="metric-label">Sudo Elevations</span>
+      <span class="metric-pip"></span>
+    </div>
+    <span class="metric-num" id="countSudo">{{ process_stats.get('sudo', {}).get('count', 0) if process_stats else 0 }}</span>
+  </div>
+  <div class="metric-card">
+    <div class="metric-header">
+      <span class="metric-label">Authd Daemon</span>
+      <span class="metric-pip"></span>
+    </div>
+    <span class="metric-num" id="countAuthd">{{ process_stats.get('authd', {}).get('count', 0) if process_stats else 0 }}</span>
+  </div>
+  <div class="metric-card">
+    <div class="metric-header">
+      <span class="metric-label">SSHD Remote</span>
+      <span class="metric-pip"></span>
+    </div>
+    <span class="metric-num" id="countSshd">{{ process_stats.get('sshd', {}).get('count', 0) if process_stats else 0 }}</span>
+  </div>
+  <div class="metric-card {{ 'alert' if integrity_alerts and integrity_alerts > 0 else '' }}">
+    <div class="metric-header">
+      <span class="metric-label">FIM Drift Alerts</span>
+      <span class="metric-pip"></span>
+    </div>
+    <span class="metric-num">{{ integrity_alerts or 0 }}</span>
+  </div>
+</section>
 
+<!-- FILTER & CONTROL TOOLBAR -->
 <div class="toolbar">
   <div class="toolbar-left">
-    <div class="search-box">
-      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <input id="searchInput" type="text" class="search-input" placeholder="Search user, command, IP, message…" oninput="applyFilters()">
+    <div class="search-wrap">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" class="search-input" placeholder="Filter user, command, PID, IP…" oninput="applyFilters()">
+      <span class="search-shortcut">/</span>
     </div>
-
-    <select id="procFilter" class="filter-select" onchange="filterProcess(this.value)">
-      <option value="all">All processes</option>
-      <option value="sudo">sudo</option>
-      <option value="authd">authd</option>
-      <option value="sshd">sshd</option>
-      <option value="opendirectoryd">opendirectoryd</option>
-      <option value="tcc">tcc</option>
-    </select>
-
-    <select id="sevFilter" class="filter-select" onchange="applyFilters()">
-      <option value="all">All severities</option>
-      <option value="CRITICAL">Critical</option>
-      <option value="WARNING">Warning</option>
-      <option value="NOTICE">Notice</option>
-      <option value="INFO">Info</option>
-    </select>
-
-    <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">First seen only</button>
+    <div class="select-wrapper">
+      <select id="procFilter" class="ctrl-select" onchange="filterProcess(this.value)">
+        <option value="all">All Processes</option>
+        <option value="sudo">sudo</option>
+        <option value="authd">authd</option>
+        <option value="sshd">sshd</option>
+        <option value="opendirectoryd">opendirectoryd</option>
+        <option value="tcc">tcc / WindowServer</option>
+      </select>
+    </div>
+    <div class="select-wrapper">
+      <select id="sevFilter" class="ctrl-select" onchange="applyFilters()">
+        <option value="all">All Severities</option>
+        <option value="CRITICAL">Critical</option>
+        <option value="WARNING">Warning</option>
+        <option value="NOTICE">Notice</option>
+        <option value="INFO">Info</option>
+      </select>
+    </div>
+    <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">First Seen Only</button>
   </div>
-
   <div class="toolbar-right">
-    <button id="btnPause" class="btn" onclick="toggleStreamPause()">Pause stream</button>
-    <button id="btnAutoScroll" class="btn active" onclick="toggleAutoScroll()">Auto-scroll</button>
-    <button class="btn" onclick="clearTable()">Clear view</button>
+    <button id="btnPause" class="btn" onclick="toggleStreamPause()">Pause</button>
+    <button id="btnAutoScroll" class="btn on" onclick="toggleAutoScroll()">Auto-scroll</button>
+    <button class="btn btn-danger" onclick="clearTable()">Clear</button>
   </div>
 </div>
 
-<div class="table-container">
-  <table class="log-table">
+<!-- LOG STREAM TABLE -->
+<div class="table-wrap">
+  <table class="log">
+    <colgroup>
+      <col class="col-time">
+      <col class="col-proc">
+      <col class="col-pid">
+      <col class="col-user">
+      <col class="col-action">
+      <col class="col-sev">
+      <col class="col-msg">
+      <col class="col-novel">
+    </colgroup>
     <thead>
       <tr>
-        <th style="width: 90px;">Time</th>
-        <th style="width: 110px;">Process</th>
-        <th style="width: 65px;">PID</th>
-        <th style="width: 110px;">User</th>
-        <th style="width: 160px;">Invariant / action</th>
-        <th style="width: 90px;">Severity</th>
-        <th>Command / authorization details</th>
-        <th style="width: 90px;">Novelty</th>
+        <th>Time</th>
+        <th>Process</th>
+        <th>PID</th>
+        <th>User</th>
+        <th>Action / Invariant</th>
+        <th>Severity</th>
+        <th>Details</th>
+        <th>Novel</th>
       </tr>
     </thead>
     <tbody id="logTbody">
@@ -353,66 +883,95 @@
           data-json='{{ item.event.raw_line | e }}'
           data-playbook='{{ item.playbook | e }}'
           onclick="openInspector(this)">
-        <td class="tag-time">{{ item.event.timestamp[-8:] if item.event.timestamp else '' }}</td>
-        <td class="tag-proc">{{ item.process or item.event.process or 'system' }}</td>
-        <td class="tag-pid">{{ item.event.pid or '-' }}</td>
-        <td class="tag-user">{{ item.event.username }}</td>
-        <td><span class="tag-action">{{ item.invariants[0] if item.invariants else item.event.event_type }}</span></td>
-        <td><span class="sev-badge sev-{{ item.severity or 'INFO' }}">{{ (item.severity or 'INFO')|title }}</span></td>
-        <td class="cell-msg">
-          {% if item.command %}<span>{{ item.command }}</span>
-          {% elif item.reasons %}<span>{{ item.reasons[0] }}</span>
-          {% else %}<span>{{ item.event.event_type }}</span>{% endif %}
-          {% if item.event.source_ip %}<span style="color:var(--t-faint); margin-left:6px;">{{ item.event.source_ip }}</span>{% endif %}
-          {% if item.enrichment and item.enrichment.asn %}<span style="color:var(--t-faint); margin-left:4px;">{{ item.enrichment.asn }}</span>{% endif %}
+        <td class="c-time">{% if item.event.timestamp %}{% if 'T' in item.event.timestamp %}{{ item.event.timestamp.split('T')[1][:8] }}{% elif ' ' in item.event.timestamp %}{{ item.event.timestamp.split(' ')[1][:8] }}{% else %}{{ item.event.timestamp[-8:] }}{% endif %}{% endif %}</td>
+        <td class="c-proc">{{ item.process or item.event.process or 'system' }}</td>
+        <td class="c-pid">{{ item.event.pid or '—' }}</td>
+        <td class="c-user">{{ item.event.username or '—' }}</td>
+        <td class="c-action">{{ item.invariants[0] if item.invariants else item.event.event_type }}</td>
+        <td>
+          <span class="sev-badge sev-{{ item.severity or 'INFO' }} sev">
+            <span class="sev-dot"></span>
+            <span>{{ (item.severity or 'INFO')|lower }}</span>
+          </span>
+        </td>
+        <td class="c-msg">
+          {% if item.command %}{% set parts = item.command.split() %}{% set bin = parts[0] %}{% if bin|length > 45 and bin.startswith('/') and bin.split('/')|length > 4 %}.../{{ bin.split('/')[-3] }}/{{ bin.split('/')[-1] }}{{ item.command[bin|length:] }}{% else %}{{ item.command }}{% endif %}{% elif item.reasons %}{{ item.reasons[0] }}{% else %}{{ item.event.event_type }}{% endif %}{% if item.event.source_ip %}<span style="color:var(--t-muted);margin-left:6px;">{{ item.event.source_ip }}</span>{% endif %}{% if item.enrichment and item.enrichment.asn %}<span style="color:var(--t-muted);margin-left:4px;">{{ item.enrichment.asn }}</span>{% endif %}
         </td>
         <td>
-          {% if item.is_novel %}<span class="novel-pill">first seen</span>
-          {% else %}<span class="known-dash">—</span>{% endif %}
+          {% if item.is_novel %}<span class="novel-tag">new</span>{% else %}<span class="seen-dash">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <div id="emptyNotice" class="empty-state" style="display:none;">No log events match the current filter.</div>
+  <div id="emptyNotice" class="empty" style="display:none;">
+    <div class="empty-icon">🔍</div>
+    <div>No events match the current filter criteria.</div>
+  </div>
 </div>
 
-<aside id="inspectorDrawer" class="drawer-overlay">
-  <div class="drawer-header">
-    <div class="drawer-title">
-      <span class="drawer-title-main">Event details</span>
-      <span id="drawerProc" style="font-size:12.5px; color:var(--t-muted);">sudo</span>
-      <span id="drawerSevBadge" class="sev-badge sev-INFO">Info</span>
+<!-- BOTTOM STATUS FOOTER -->
+<footer class="status-footer">
+  <div class="status-left">
+    <div class="status-item">
+      <span class="status-dot active"></span>
+      <span>Stream: /usr/bin/log stream --style ndjson</span>
     </div>
-    <button class="btn-close" onclick="closeInspector()">&times;</button>
+    <div class="status-item">
+      <span class="status-dot"></span>
+      <span>Engine: Invariant Rules v1.2</span>
+    </div>
   </div>
-  <div class="drawer-body">
-    <div class="detail-group">
-      <div class="detail-label">Time</div>
-      <div id="drawerTime" class="detail-val" style="font-family:var(--mono);">--</div>
-    </div>
-    <div class="detail-group">
-      <div class="detail-label">User & process context</div>
-      <div class="detail-val">
-        User: <strong id="drawerUser" style="color:var(--t-primary);">--</strong><br>
-        Process: <span id="drawerProcName">--</span> (PID: <span id="drawerPid" style="font-family:var(--mono);">--</span>)
+  <div class="status-right">
+    <span>Press [Esc] to dismiss drawer &middot; [/] to search</span>
+  </div>
+</footer>
+
+<!-- DRAWER BACKDROP -->
+<div id="drawerBackdrop" class="drawer-backdrop" onclick="closeInspector()"></div>
+
+<!-- INSPECTOR DRAWER -->
+<aside id="inspectorDrawer" class="drawer">
+  <div class="drawer-hdr">
+    <div>
+      <div class="drawer-title">Event Forensic Details</div>
+      <div class="drawer-meta">
+        <span id="drawerProc" style="font-family:var(--font-mono);font-weight:600;">—</span>
+        &nbsp;&middot;&nbsp;
+        <span id="drawerSevBadge" class="sev-badge sev-INFO sev">
+          <span class="sev-dot"></span>
+          <span>info</span>
+        </span>
       </div>
     </div>
-    <div class="detail-group">
-      <div class="detail-label">Command / authorization details</div>
-      <div id="drawerCmd" class="detail-code">--</div>
+    <button class="drawer-close" onclick="closeInspector()">&#x2715;</button>
+  </div>
+  <div class="drawer-body">
+    <div class="dg">
+      <div class="dg-label">Timestamp</div>
+      <div id="drawerTime" class="dg-val">—</div>
     </div>
-    <div class="detail-group">
-      <div class="detail-label">Invariant / action evaluation</div>
-      <div id="drawerInvariantDesc" class="detail-val">--</div>
+    <div class="dg">
+      <div class="dg-label">Principal &amp; Process</div>
+      <div class="dg-val">
+        <span id="drawerUser" style="color:#CBD5E1;">—</span>&nbsp;via&nbsp;<span id="drawerProcName" style="color:var(--t-primary);font-weight:600;">—</span>&nbsp;(pid&nbsp;<span id="drawerPid" style="color:var(--t-secondary);">—</span>)
+      </div>
     </div>
-    <div id="drawerPlaybookBox" class="playbook-box">
-      <div class="playbook-title">Operator incident guidance</div>
-      <div id="drawerPlaybook" class="playbook-text">Review event details.</div>
+    <div class="dg">
+      <div class="dg-label">Command Execution / Evaluated Details</div>
+      <div id="drawerCmd" class="dg-code">—</div>
     </div>
-    <div class="detail-group">
-      <div class="detail-label">Raw log payload</div>
-      <pre id="drawerRawJson" class="detail-code" style="max-height:220px;">{}</pre>
+    <div class="dg">
+      <div class="dg-label">Invariant Rule Triggered</div>
+      <div id="drawerInvariantDesc" class="dg-val">—</div>
+    </div>
+    <div id="drawerPlaybookBox" class="pb-box">
+      <div class="pb-label">Operator Remediation Playbook</div>
+      <div id="drawerPlaybook" class="pb-text">Standard review. Verify that this event corresponds to authorized administrator actions.</div>
+    </div>
+    <div class="dg">
+      <div class="dg-label">Raw Audit Log Payload</div>
+      <pre id="drawerRawJson" class="dg-code" style="max-height:220px;">{}</pre>
     </div>
   </div>
 </aside>
@@ -424,10 +983,10 @@
   let activeProcess = 'all';
   let eventSource = null;
   let counts = {
-    all: parseInt(document.getElementById('countAll')?.innerText || '0', 10),
-    sudo: parseInt(document.getElementById('countSudo')?.innerText || '0', 10),
+    all:   parseInt(document.getElementById('countAll')?.innerText  || '0', 10),
+    sudo:  parseInt(document.getElementById('countSudo')?.innerText  || '0', 10),
     authd: parseInt(document.getElementById('countAuthd')?.innerText || '0', 10),
-    sshd: parseInt(document.getElementById('countSshd')?.innerText || '0', 10)
+    sshd:  parseInt(document.getElementById('countSshd')?.innerText  || '0', 10)
   };
 
   function checkRowMatch(proc, sev, isNovel, searchData, q, filterSev) {
@@ -443,8 +1002,7 @@
     const sev = document.getElementById('sevFilter').value;
     const tbody = document.getElementById('logTbody');
     const rows = tbody.children;
-    let visibleCount = 0;
-
+    let visible = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const proc = r.getAttribute('data-proc') || '';
@@ -452,13 +1010,12 @@
       const rNovel = r.getAttribute('data-novel') === 'true';
       const searchData = r.getAttribute('data-search') || '';
       if (checkRowMatch(proc, rSev, rNovel, searchData, q, sev)) {
-        r.style.display = '';
-        visibleCount++;
+        r.style.display = ''; visible++;
       } else {
         r.style.display = 'none';
       }
     }
-    document.getElementById('emptyNotice').style.display = visibleCount === 0 ? 'block' : 'none';
+    document.getElementById('emptyNotice').style.display = visible === 0 ? 'block' : 'none';
   }
 
   function filterProcess(proc) {
@@ -477,23 +1034,16 @@
     isPaused = !isPaused;
     const btn = document.getElementById('btnPause');
     const pill = document.getElementById('livePill');
-    const dot = pill ? pill.querySelector('.pulse-dot') : null;
     const text = document.getElementById('liveStatusText');
-    if (isPaused) {
-      btn.innerText = 'Resume stream';
-      btn.classList.add('active');
-      if (dot) dot.classList.add('paused');
-      if (text) text.innerText = 'paused';
-    } else {
-      btn.innerText = 'Pause stream';
-      btn.classList.remove('active');
-      if (dot) dot.classList.remove('paused');
-      if (text) text.innerText = 'live';
-    }
+    btn.innerText = isPaused ? 'Resume' : 'Pause';
+    btn.classList.toggle('active', isPaused);
+    if (pill) pill.classList.toggle('paused', isPaused);
+    if (text) text.innerText = isPaused ? 'PAUSED' : 'LIVE';
   }
 
   function toggleAutoScroll() {
     autoScroll = !autoScroll;
+    document.getElementById('btnAutoScroll').classList.toggle('on', autoScroll);
     document.getElementById('btnAutoScroll').classList.toggle('active', autoScroll);
   }
 
@@ -505,48 +1055,75 @@
   function openInspector(row) {
     document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
     row.classList.add('selected');
-
-    const proc = row.getAttribute('data-proc') || 'system';
-    const sev = row.getAttribute('data-sev') || 'INFO';
-    const user = row.getAttribute('data-user') || 'system';
-    const cmd = row.getAttribute('data-cmd') || '';
-    const raw = row.getAttribute('data-json') || '{}';
-    const playbook = row.getAttribute('data-playbook') || 'Standard review: verify user baseline.';
-    const time = row.querySelector('.tag-time') ? row.querySelector('.tag-time').innerText : '';
-    const pid = row.querySelector('.tag-pid') ? row.querySelector('.tag-pid').innerText : '';
+    const proc     = row.getAttribute('data-proc')     || 'system';
+    const sev      = row.getAttribute('data-sev')      || 'INFO';
+    const user     = row.getAttribute('data-user')     || '—';
+    const cmd      = row.getAttribute('data-cmd')      || '';
+    const raw      = row.getAttribute('data-json')     || '{}';
+    const playbook = row.getAttribute('data-playbook') || 'Standard security review. Verify operator authorization.';
+    const time     = row.querySelector('.c-time')   ? row.querySelector('.c-time').innerText   : '';
+    const pid      = row.querySelector('.c-pid')    ? row.querySelector('.c-pid').innerText    : '';
+    const msgCell  = row.querySelector('.c-msg')    ? row.querySelector('.c-msg').innerText    : '';
+    const action   = row.querySelector('.c-action') ? row.querySelector('.c-action').innerText : '';
 
     document.getElementById('drawerProc').innerText = proc;
     const badge = document.getElementById('drawerSevBadge');
-    badge.innerText = sev.charAt(0).toUpperCase() + sev.slice(1).toLowerCase();
-    badge.className = 'sev-badge sev-' + sev;
+    badge.className = 'sev-badge sev-' + sev + ' sev';
+    badge.innerHTML = `<span class="sev-dot"></span><span>${sev.toLowerCase()}</span>`;
 
-    document.getElementById('drawerTime').innerText = time;
-    document.getElementById('drawerUser').innerText = user;
-    document.getElementById('drawerProcName').innerText = proc;
-    document.getElementById('drawerPid').innerText = pid;
-    document.getElementById('drawerCmd').innerText = cmd || '(No specific command recorded)';
-    document.getElementById('drawerInvariantDesc').innerText = row.querySelector('.cell-msg') ? row.querySelector('.cell-msg').innerText : '';
-    document.getElementById('drawerPlaybook').innerText = playbook;
-
+    document.getElementById('drawerTime').innerText         = time;
+    document.getElementById('drawerUser').innerText         = user;
+    document.getElementById('drawerProcName').innerText     = proc;
+    document.getElementById('drawerPid').innerText          = pid;
+    document.getElementById('drawerCmd').innerText          = cmd || '(none)';
+    document.getElementById('drawerInvariantDesc').innerText= action || msgCell;
+    document.getElementById('drawerPlaybook').innerText     = playbook;
     const pbBox = document.getElementById('drawerPlaybookBox');
-    pbBox.className = 'playbook-box' + (sev === 'CRITICAL' ? ' is-critical' : (sev === 'WARNING' ? ' is-warning' : ''));
-
+    pbBox.className = 'pb-box' + (sev === 'CRITICAL' ? ' is-crit' : (sev === 'WARNING' ? ' is-warn' : ''));
     try {
       const parsed = JSON.parse(raw);
       document.getElementById('drawerRawJson').innerText = JSON.stringify(parsed, null, 2);
     } catch(e) {
       document.getElementById('drawerRawJson').innerText = raw;
     }
-
     document.getElementById('inspectorDrawer').classList.add('open');
+    document.getElementById('drawerBackdrop').classList.add('open');
   }
 
   function closeInspector() {
     document.getElementById('inspectorDrawer').classList.remove('open');
+    document.getElementById('drawerBackdrop').classList.remove('open');
     document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('selected'));
   }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInspector(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeInspector();
+    if (e.key === '/' && document.activeElement !== document.getElementById('searchInput')) {
+      e.preventDefault();
+      document.getElementById('searchInput').focus();
+    }
+  });
+
+  function formatTime(t) {
+    if (!t) return '';
+    if (t.includes('T')) return t.split('T')[1].slice(0, 8);
+    if (t.includes(' ')) return t.split(' ')[1].slice(0, 8);
+    return t.length >= 8 ? t.slice(-8) : t;
+  }
+
+  function formatCmd(c) {
+    if (!c) return '';
+    const parts = c.split(' ');
+    const bin = parts[0];
+    if (bin.length > 45 && bin.startsWith('/')) {
+      const segs = bin.split('/');
+      if (segs.length > 4) {
+        parts[0] = '.../' + segs[segs.length - 3] + '/' + segs[segs.length - 1];
+        return parts.join(' ');
+      }
+    }
+    return c;
+  }
 
   function initLiveStream() {
     if (!window.EventSource) return;
@@ -561,49 +1138,54 @@
   }
 
   function addLiveRow(item) {
-    const tbody = document.getElementById('logTbody');
-    const ev = item.event || {};
-    const proc = item.process || ev.process || 'system';
-    const sev = item.severity || 'INFO';
-    const isNovel = item.is_novel || false;
-    const cmd = item.command || ev.command || '';
-    const reasons = item.reasons || [];
+    const tbody    = document.getElementById('logTbody');
+    const ev       = item.event || {};
+    const proc     = item.process || ev.process || 'system';
+    const sev      = item.severity || 'INFO';
+    const isNovel  = item.is_novel || false;
+    const cmd      = item.command  || ev.command || '';
+    const reasons  = item.reasons  || [];
     const invariants = item.invariants || [];
-    const ts = ev.timestamp || '';
-    const timeStr = ts.length >= 8 ? ts.slice(-8) : ts;
+    const ts       = ev.timestamp || '';
+
+    const timeStr    = formatTime(ts);
+    const displayCmd = formatCmd(cmd) || (reasons[0] || ev.event_type || '');
+    const actionStr  = invariants[0] || ev.event_type || '';
 
     counts.all = (counts.all || 0) + 1;
-    const countAllEl = document.getElementById('countAll');
-    if (countAllEl) countAllEl.innerText = counts.all;
-    if (proc.includes('sudo'))  { counts.sudo = (counts.sudo || 0) + 1; const el = document.getElementById('countSudo'); if (el) el.innerText = counts.sudo; }
+    const elAll = document.getElementById('countAll');
+    if (elAll) elAll.innerText = counts.all;
+    if (proc.includes('sudo'))  { counts.sudo  = (counts.sudo  || 0) + 1; const el = document.getElementById('countSudo');  if (el) el.innerText = counts.sudo; }
     if (proc.includes('authd')) { counts.authd = (counts.authd || 0) + 1; const el = document.getElementById('countAuthd'); if (el) el.innerText = counts.authd; }
-    if (proc.includes('sshd'))  { counts.sshd = (counts.sshd || 0) + 1; const el = document.getElementById('countSshd'); if (el) el.innerText = counts.sshd; }
+    if (proc.includes('sshd'))  { counts.sshd  = (counts.sshd  || 0) + 1; const el = document.getElementById('countSshd');  if (el) el.innerText = counts.sshd; }
 
     const tr = document.createElement('tr');
-    tr.className = 'flash-entry';
-    tr.setAttribute('data-proc', proc);
-    tr.setAttribute('data-sev', sev);
-    tr.setAttribute('data-novel', isNovel ? 'true' : 'false');
-    tr.setAttribute('data-user', ev.username || 'system');
-    tr.setAttribute('data-cmd', cmd);
-    tr.setAttribute('data-json', ev.raw_line || '{}');
-    tr.setAttribute('data-playbook', item.playbook || '');
+    tr.className = 'row-new';
+    tr.setAttribute('data-proc',    proc);
+    tr.setAttribute('data-sev',     sev);
+    tr.setAttribute('data-novel',   isNovel ? 'true' : 'false');
+    tr.setAttribute('data-user',    ev.username || 'system');
+    tr.setAttribute('data-cmd',     cmd);
+    tr.setAttribute('data-json',    ev.raw_line || '{}');
+    tr.setAttribute('data-playbook',item.playbook || '');
     const searchData = (proc + ' ' + (ev.pid || '') + ' ' + (ev.username || '') + ' ' + cmd + ' ' + reasons.join(' ') + ' ' + invariants.join(' ') + ' ' + (ev.source_ip || '')).toLowerCase();
     tr.setAttribute('data-search', searchData);
     tr.onclick = function() { openInspector(this); };
 
-    const sevDisplay = sev.charAt(0).toUpperCase() + sev.slice(1).toLowerCase();
-    const actionDisplay = invariants[0] || ev.event_type || '';
-
     tr.innerHTML = `
-      <td class="tag-time">${timeStr}</td>
-      <td class="tag-proc">${proc}</td>
-      <td class="tag-pid">${ev.pid || '-'}</td>
-      <td class="tag-user">${ev.username || 'system'}</td>
-      <td><span class="tag-action">${actionDisplay}</span></td>
-      <td><span class="sev-badge sev-${sev}">${sevDisplay}</span></td>
-      <td class="cell-msg"><span>${cmd ? cmd : (reasons[0] || ev.event_type || '')}</span></td>
-      <td>${isNovel ? '<span class="novel-pill">first seen</span>' : '<span class="known-dash">—</span>'}</td>
+      <td class="c-time">${timeStr}</td>
+      <td class="c-proc">${proc}</td>
+      <td class="c-pid">${ev.pid || '—'}</td>
+      <td class="c-user">${ev.username || '—'}</td>
+      <td class="c-action">${actionStr}</td>
+      <td>
+        <span class="sev-badge sev-${sev} sev">
+          <span class="sev-dot"></span>
+          <span>${sev.toLowerCase()}</span>
+        </span>
+      </td>
+      <td class="c-msg">${displayCmd}</td>
+      <td>${isNovel ? '<span class="novel-tag">new</span>' : '<span class="seen-dash">—</span>'}</td>
     `;
 
     const q = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -611,10 +1193,10 @@
     if (!checkRowMatch(proc, sev, isNovel, searchData, q, filterSev)) tr.style.display = 'none';
 
     tbody.insertBefore(tr, tbody.firstChild);
-    if (tbody.children.length > 500) tbody.removeChild(tbody.lastChild);
+    if (tbody.children.length > 1000) tbody.removeChild(tbody.lastChild);
 
-    const container = document.querySelector('.table-container');
-    if (autoScroll && container && container.scrollTop < 60) container.scrollTop = 0;
+    const wrap = document.querySelector('.table-wrap');
+    if (autoScroll && wrap && wrap.scrollTop < 60) wrap.scrollTop = 0;
   }
 
   window.addEventListener('DOMContentLoaded', () => { initLiveStream(); });
