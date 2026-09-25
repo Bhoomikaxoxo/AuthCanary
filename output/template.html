@@ -875,7 +875,7 @@
     <button id="btnNovelOnly" class="btn" onclick="toggleNovelOnly()">First Seen Only</button>
   </div>
   <div class="toolbar-right">
-    <button id="btnLoadHistory" class="btn" onclick="loadRecentHistory()" title="Fetch last 50 events from SQLite baseline">↺ Load Recent (50)</button>
+    <button id="btnLoadHistory" class="btn" onclick="loadRecentHistory()" title="Fetch recent events from the baseline database">↺ Load History</button>
     <button id="btnPause" class="btn" onclick="toggleStreamPause()">Pause</button>
     <button id="btnAutoScroll" class="btn on" onclick="toggleAutoScroll()">Auto-scroll</button>
     <button class="btn btn-danger" onclick="clearTable()">Clear</button>
@@ -1113,7 +1113,7 @@
     btn.innerText = 'Loading…';
     btn.disabled = true;
     try {
-      const res = await fetch('/api/logs');
+      const res = await fetch('/api/logs?limit=200');
       if (res.ok) {
         const logs = await res.json();
         document.getElementById('logTbody').innerHTML = '';
@@ -1122,7 +1122,7 @@
           const cmd = ev.command || '';
           return !cmd.includes('kTCCServiceUnknown') && !cmd.includes('kTCCServiceAll');
         });
-        const slice = validLogs.slice(0, 50).reverse();
+        const slice = validLogs.slice(0, 200).reverse();
         slice.forEach(ev => {
           addLiveRow({
             event: {
@@ -1306,7 +1306,14 @@
     if (autoScroll && wrap && wrap.scrollTop < 60) wrap.scrollTop = 0;
   }
 
-  window.addEventListener('DOMContentLoaded', () => { initLiveStream(); });
+  window.addEventListener('DOMContentLoaded', () => {
+    // Auto-load recent history from the database if the table starts empty
+    const tbody = document.getElementById('logTbody');
+    if (!tbody || tbody.children.length === 0) {
+      loadRecentHistory();
+    }
+    initLiveStream();
+  });
 </script>
 </body>
 </html>

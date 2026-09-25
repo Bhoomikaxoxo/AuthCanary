@@ -13,14 +13,19 @@ import json
 import os
 import platform
 import queue
+import socket
 import subprocess
 import sys
 import threading
 import time
 import webbrowser
+from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse, parse_qs
+
+from jinja2 import Environment, FileSystemLoader
 
 from ingest.adapters import MacOSUnifiedLogAdapter
 from engine.baseline import Baseline
@@ -275,8 +280,11 @@ class AuthCanaryHandler(BaseHTTPRequestHandler):
 
         # 2. Historical / Recent Logs from SQLite
         if path == "/api/logs":
+            # Support ?limit=N query param (default 200)
+            qs = parse_qs(urlparse(self.path).query)
+            limit = min(int(qs.get("limit", [200])[0]), 1000)
             baseline = Baseline(db_path=self.db_path)
-            events = baseline.get_all_logged_events(limit=250)
+            events = baseline.get_all_logged_events(limit=limit)
             self._send_json(200, events)
             return
 
@@ -402,6 +410,108 @@ class AuthCanaryHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
 
+def _regenerate_report_from_history(
+    output_dir: Path,
+    db_path: str,
+    config: dict,
+    limit: int = 200,
+) -> None:
+    """Regenerate report.html from the Jinja template using recent historical events.
+
+    This ensures the dashboard loads pre-populated with real data from the
+    user's system instead of showing a blank table.
+    """
+    from engine.playbooks import get_playbook
+
+    baseline = Baseline(db_path=db_path)
+    recent = baseline.get_all_logged_events(limit=limit)
+
+    if not recent:
+        return  # Nothing to show, leave existing report or let placeholder kick in
+
+    template_dir = output_dir
+    template_file = template_dir / "template.html"
+    if not template_file.exists():
+        return
+
+    env = Environment(
+        loader=FileSystemLoader(str(template_dir)),
+        autoescape=True,
+    )
+    template = env.get_template("template.html")
+
+    # Build lightweight event objects for the Jinja template
+    class _Obj:
+        def __init__(self, d: dict):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    setattr(self, k, _Obj(v))
+                elif isinstance(v, list):
+                    setattr(self, k, [
+                        _Obj(item) if isinstance(item, dict) else item
+                        for item in v
+                    ])
+                else:
+                    setattr(self, k, v)
+
+    host_info = _Obj({
+        "hostname": socket.gethostname(),
+        "platform": f"{platform.system()} {platform.machine()}",
+    })
+
+    # Convert DB rows → template objects (newest first)
+    template_events = []
+    process_stats = baseline.get_process_stats()
+
+    for ev in recent:
+        sigs = ev.get("signals", [])
+        invs = ev.get("invariants", [])
+        pb = get_playbook(
+            sigs,
+            user=ev.get("username", ""),
+            ip=ev.get("source_ip") or "unknown",
+        )
+        raw_line = ev.get("raw_line", "")
+
+        obj = _Obj({
+            "score": ev.get("score", 0),
+            "reasons": ev.get("reasons", []),
+            "severity": ev.get("severity", "INFO"),
+            "invariants": invs,
+            "process": ev.get("process", "system"),
+            "is_novel": ev.get("is_novel", False),
+            "command": ev.get("command", ""),
+            "event": _Obj({
+                "timestamp": ev.get("timestamp", ""),
+                "username": ev.get("username", ""),
+                "process": ev.get("process", "system"),
+                "pid": ev.get("pid", ""),
+                "command": ev.get("command", ""),
+                "event_type": ev.get("event_type", ""),
+                "source_ip": ev.get("source_ip", ""),
+                "raw_line": raw_line,
+            }),
+            "enrichment": None,
+            "playbook": pb,
+        })
+        template_events.append(obj)
+
+    integrity_alerts = 0
+
+    try:
+        html_content = template.render(
+            host_info=host_info,
+            process_stats=process_stats,
+            all_events=template_events,
+            integrity_alerts=integrity_alerts,
+        )
+        html_path = output_dir / "report.html"
+        html_path.write_text(html_content, encoding="utf-8")
+        print(f"  Loaded {len(template_events)} historical events into dashboard.")
+    except Exception as exc:
+        sys.stderr.write(f"  [Startup] Could not pre-render report: {exc}\n")
+
+
 def start_server(
     output_dir: Path | str = "./output",
     port: int = 8080,
@@ -419,6 +529,14 @@ def start_server(
 
     AuthCanaryHandler.output_dir = resolved_dir
     AuthCanaryHandler.db_path = expanded_db
+
+    # Pre-render the dashboard with recent historical events from SQLite
+    _regenerate_report_from_history(
+        output_dir=resolved_dir,
+        db_path=expanded_db,
+        config=config or {},
+        limit=200,
+    )
 
     # Initialize and start live system log streamer
     _STREAMER = SystemLogStreamer(db_path=expanded_db, config=config or {})
