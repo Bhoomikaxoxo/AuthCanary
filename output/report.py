@@ -11,6 +11,8 @@ Both go to the configured output directory.
 from __future__ import annotations
 
 import json
+import platform
+import socket
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 from engine.models import ScoredEvent
 from engine.baseline import Baseline
 from engine.playbooks import get_playbook
+from output.utils import DotDict
 
 
 def generate_report(
@@ -84,27 +87,12 @@ def generate_report(
     template = env.get_template("template.html")
 
     # ── Prepare rich template data ─────────────────────────────────
-    import platform
-    import socket
-
     host_info = {
         "hostname": socket.gethostname(),
         "platform": f"{platform.system()} {platform.machine()}",
         "os": platform.system(),
         "arch": platform.machine(),
     }
-
-    # Build template context with objects that support attribute access
-    class _Obj:
-        """Lightweight namespace for Jinja2 dot access."""
-        def __init__(self, d: dict):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    setattr(self, k, _Obj(v))
-                elif isinstance(v, list):
-                    setattr(self, k, [_Obj(item) if isinstance(item, dict) else item for item in v])
-                else:
-                    setattr(self, k, v)
 
     # 2. All events (Full Log Stream)
     # Only populate template_all_events with events from the current run if provided.
@@ -119,7 +107,7 @@ def generate_report(
         sigs = getattr(se, "signals", [])
         invs = getattr(se, "invariants", [])
         pb = getattr(se, "playbook", "") or get_playbook(sigs, user=se.event.username, ip=se.event.source_ip or "unknown")
-        obj = _Obj({
+        obj = DotDict({
             "score": se.score,
             "reasons": se.reasons,
             "severity": getattr(se, "severity", "INFO"),
@@ -127,8 +115,8 @@ def generate_report(
             "process": getattr(se.event, "process", "system"),
             "is_novel": getattr(se, "is_novel", False),
             "command": getattr(se.event, "command", ""),
-            "event": _Obj(se.event.to_dict()),
-            "enrichment": _Obj(se.enrichment.to_dict()) if se.enrichment else None,
+            "event": DotDict(se.event.to_dict()),
+            "enrichment": DotDict(se.enrichment.to_dict()) if se.enrichment else None,
             "playbook": pb,
         })
         template_all_events.append(obj)
@@ -173,7 +161,7 @@ def generate_report(
         cnt = hour_histogram[h]
         sc = hourly_max_score[h]
         is_anom = sc >= alert_threshold
-        hourly_data.append(_Obj({
+        hourly_data.append(DotDict({
             "hour": h,
             "count": cnt,
             "max_score": sc,
@@ -198,20 +186,7 @@ def generate_report(
         "ssh": ssh_count,
     }
 
-    if hasattr(baseline, "get_warmup_info"):
-        warmup_info = baseline.get_warmup_info()
-    else:
-        warmup_info = {
-            "warmup_complete": warmup_complete,
-            "days_elapsed": 0,
-            "days_total": 7,
-            "days_left": 7,
-            "events_processed": len(template_all_events),
-            "min_events": 50,
-            "events_left": max(0, 50 - len(template_all_events)),
-            "event_quota_met": len(template_all_events) >= 50,
-            "time_quota_met": False,
-        }
+    warmup_info = baseline.get_warmup_info()
     if skip_warmup:
         warmup_info["warmup_complete"] = True
         warmup_complete = True
@@ -230,32 +205,32 @@ def generate_report(
         threat_label = "All Systems Nominal"
 
     max_h = max(max(hour_histogram, default=0), 1)
-    process_stats = baseline.get_process_stats() if hasattr(baseline, "get_process_stats") else {}
+    process_stats = baseline.get_process_stats()
 
     html_content = template.render(
         generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         warmup_complete=warmup_complete,
         warmup_message=baseline.warmup_status(),
-        warmup_info=_Obj(warmup_info),
+        warmup_info=DotDict(warmup_info),
         anomaly_count=anomaly_count,
         alert_threshold=alert_threshold,
         max_score=max_score,
         threat_level=threat_level,
         threat_label=threat_label,
-        host_info=_Obj(host_info),
-        stats=_Obj(stats),
+        host_info=DotDict(host_info),
+        stats=DotDict(stats),
         process_stats=process_stats,
-        user_stats={k: _Obj(v) for k, v in user_stats.items()},
+        user_stats={k: DotDict(v) for k, v in user_stats.items()},
         event_type_counts=event_type_counts,
-        filter_counts=_Obj(filter_counts),
+        filter_counts=DotDict(filter_counts),
         hour_histogram=hour_histogram,
         hourly_data=hourly_data,
         max_h=max_h,
-        flagged_hours={k: _Obj(v) for k, v in flagged_hours.items()},
+        flagged_hours={k: DotDict(v) for k, v in flagged_hours.items()},
         scored_events=template_alert_events,       # Alert events for "What's Important"
         flagged_events=template_flagged_events,     # Sub-threshold scored events
         all_events=template_all_events,            # Full list for "Systematic Log Stream"
-        integrity_results=[_Obj(ir.to_dict()) for ir in integrity_list],
+        integrity_results=[DotDict(ir.to_dict()) for ir in integrity_list],
         integrity_alerts=integrity_alerts,
     )
 

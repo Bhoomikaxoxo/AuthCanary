@@ -2,7 +2,7 @@
 AuthCanary — Tests for the engine layer.
 
 Tests baseline persistence, warm-up tracking, statistics calculation,
-and the anomaly scoring engine (weights, signals, thresholds, and limits).
+and the invariant engine (severity classification, signals, and thresholds).
 """
 
 import sqlite3
@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ingest.schema import AuthEvent
 from engine.models import EnrichmentResult, ScoredEvent
 from engine.baseline import Baseline
-from engine.scoring import Scorer, DEFAULT_WEIGHTS
+from engine.invariants import InvariantEngine
+from engine.novelty import NoveltyTracker
 
 
 # ── Baseline tests ──────────────────────────────────────────────────
@@ -148,9 +149,10 @@ def test_baseline_reset():
         assert b.get_stats()["total_events"] == 0
 
 
-# ── Scorer tests ───────────────────────────────────────────────────
+# ── InvariantEngine + NoveltyTracker tests ─────────────────────────
 
-def test_scorer_clean_known_event():
+def test_clean_known_event():
+    """A repeat event from a known IP/ASN should score 0 with INFO severity."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
         ev_prev = AuthEvent(
@@ -163,13 +165,8 @@ def test_scorer_clean_known_event():
         enr_prev = EnrichmentResult(ip="8.8.8.8", asn="AS15169", org="Google", enriched=True)
         b.record_event(ev_prev, enr_prev, 0, [])
 
-        config = {
-            "scoring": {
-                "alert_threshold": 40,
-                "weights": DEFAULT_WEIGHTS,
-            }
-        }
-        scorer = Scorer(config)
+        engine = InvariantEngine()
+        tracker = NoveltyTracker()
 
         ev = AuthEvent(
             timestamp="2024-01-15T14:30:00",
@@ -180,13 +177,14 @@ def test_scorer_clean_known_event():
         )
         enr = EnrichmentResult(ip="8.8.8.8", asn="AS15169", org="Google", enriched=True)
 
-        scored = scorer.score(ev, enr, b)
+        is_novel, novelty_reasons = tracker.evaluate(ev, enr, b)
+        scored = engine.evaluate(ev, enr, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
         assert scored.score == 0
-        assert len(scored.reasons) == 0
-        assert not scorer.is_alert(scored)
+        assert scored.severity == "INFO"
 
 
-def test_scorer_new_ip_new_asn():
+def test_new_ip_new_asn():
+    """A login from a never-seen IP and ASN should flag as novel."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
         ev_prev = AuthEvent(
@@ -199,8 +197,8 @@ def test_scorer_new_ip_new_asn():
         enr_prev = EnrichmentResult(ip="8.8.8.8", asn="AS15169", org="Google", enriched=True)
         b.record_event(ev_prev, enr_prev, 0, [])
 
-        config = {"scoring": {"alert_threshold": 40}}
-        scorer = Scorer(config)
+        engine = InvariantEngine()
+        tracker = NoveltyTracker()
 
         ev = AuthEvent(
             timestamp="2024-01-15T14:30:00",
@@ -211,21 +209,18 @@ def test_scorer_new_ip_new_asn():
         )
         enr = EnrichmentResult(ip="185.220.101.34", asn="AS208323", org="Tor Exit", country="DE", city="Frankfurt", enriched=True)
 
-        scored = scorer.score(ev, enr, b)
-        assert scored.score >= 35
-        assert any("New IP" in r and "unknown ASN" in r for r in scored.reasons)
+        is_novel, novelty_reasons = tracker.evaluate(ev, enr, b)
+        scored = engine.evaluate(ev, enr, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
+        assert scored.score > 0
+        assert any("First-seen" in r for r in scored.reasons)
 
 
-def test_scorer_new_ssh_key_always_alert():
+def test_new_ssh_key_critical():
+    """A new SSH key addition should be CRITICAL severity."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
-        config = {
-            "scoring": {
-                "alert_threshold": 60,
-                "always_alert": ["new_ssh_key"],
-            }
-        }
-        scorer = Scorer(config)
+        engine = InvariantEngine()
+        tracker = NoveltyTracker()
 
         ev = AuthEvent(
             timestamp="2024-01-15T14:30:00",
@@ -233,35 +228,41 @@ def test_scorer_new_ssh_key_always_alert():
             username="deploy",
             raw_line="sshd[11442]: key added: SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 for user deploy added to authorized_keys",
         )
-        scored = scorer.score(ev, None, b)
-        assert scored.score >= 40
-        assert any("SSH key" in r for r in scored.reasons)
-        assert scorer.is_alert(scored)
+        is_novel, novelty_reasons = tracker.evaluate(ev, None, b)
+        scored = engine.evaluate(ev, None, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
+        assert scored.severity == "CRITICAL"
+        assert "UNAUTHORIZED_KEY_ADD" in scored.invariants
 
 
-def test_scorer_first_sudo():
+def test_first_sudo():
+    """First sudo usage by a user should be flagged as novel."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
-        config = {"scoring": {"alert_threshold": 40}}
-        scorer = Scorer(config)
+        engine = InvariantEngine()
+        tracker = NoveltyTracker()
 
         ev = AuthEvent(
             timestamp="2024-01-15T14:30:00",
             event_type="sudo_used",
             username="alice",
         )
-        scored = scorer.score(ev, None, b)
-        assert scored.score >= 30
-        assert any("First sudo usage by 'alice'" in r for r in scored.reasons)
+        is_novel, novelty_reasons = tracker.evaluate(ev, None, b)
+        scored = engine.evaluate(ev, None, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
+        assert scored.score > 0
+        assert any("sudo" in r.lower() or "privilege" in r.lower() for r in scored.reasons)
 
 
-def test_scorer_brute_force_success():
+def test_brute_force_burst_detection():
+    """Multiple login failures from the same IP should trigger FAILED_AUTH_BURST."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
         now = datetime(2024, 1, 15, 12, 0, 0)
-        # Record 4 login failures from same IP
-        for i in range(4):
-            t = (now - timedelta(minutes=4 - i)).isoformat()
+        engine = InvariantEngine()
+        tracker = NoveltyTracker()
+
+        # Record 3 login failures from same IP
+        for i in range(3):
+            t = (now - timedelta(minutes=3 - i)).isoformat()
             ev_fail = AuthEvent(
                 timestamp=t,
                 event_type="login_failure",
@@ -270,29 +271,28 @@ def test_scorer_brute_force_success():
             )
             b.record_event(ev_fail, None, 0, [])
 
-        config = {
-            "scoring": {
-                "brute_force_window_min": 10,
-                "brute_force_min_failures": 3,
-            }
-        }
-        scorer = Scorer(config)
-
+        # The 4th failure should detect the burst
         ev = AuthEvent(
             timestamp=now.isoformat(),
-            event_type="login_success",
+            event_type="login_failure",
             username="alice",
             source_ip="45.33.32.156",
         )
-        scored = scorer.score(ev, None, b)
-        assert scored.score >= 35
-        assert any("brute-force" in r for r in scored.reasons)
+        is_novel, novelty_reasons = tracker.evaluate(ev, None, b)
+        scored = engine.evaluate(ev, None, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
+        assert scored.score >= 25
+        assert "FAILED_AUTH_BURST" in scored.invariants
 
 
-def test_scorer_max_capped_at_100():
+def test_score_max_capped_at_100():
+    """Scores should never exceed 100."""
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         b = Baseline(tmp.name)
+        engine = InvariantEngine(config={"correlation": {"sequence_window_min": 15}})
+        tracker = NoveltyTracker()
+
         now = datetime(2024, 1, 15, 3, 0, 0)
+        # Set up prior suspicious activity
         for i in range(5):
             t = (now - timedelta(minutes=4 - i)).isoformat()
             ev_fail = AuthEvent(
@@ -301,17 +301,9 @@ def test_scorer_max_capped_at_100():
                 username="alice",
                 source_ip="185.220.101.34",
             )
-            b.record_event(ev_fail, None, 0, [])
-
-        config = {
-            "scoring": {
-                "weights": {
-                    "new_asn": 60,
-                    "brute_force_pattern": 60,
-                }
-            }
-        }
-        scorer = Scorer(config)
+            b.record_event(ev_fail, None, 0, [],
+                          signals=["novel_remote_origin"], severity="WARNING",
+                          invariants=["NOVEL_REMOTE_ORIGIN"])
 
         ev = AuthEvent(
             timestamp=now.isoformat(),
@@ -321,5 +313,6 @@ def test_scorer_max_capped_at_100():
         )
         enr = EnrichmentResult(ip="185.220.101.34", asn="AS9999", org="Test", enriched=True)
 
-        scored = scorer.score(ev, enr, b)
-        assert scored.score == 100
+        is_novel, novelty_reasons = tracker.evaluate(ev, enr, b)
+        scored = engine.evaluate(ev, enr, b, is_novel=is_novel, novelty_reasons=novelty_reasons)
+        assert scored.score <= 100

@@ -34,7 +34,7 @@ class NoveltyTracker:
         user = event.username or "system"
 
         # 1. First-time Sudo command
-        if event.process == "sudo" and event.command and hasattr(baseline, "is_sudo_command_known"):
+        if event.process == "sudo" and event.command:
             if not baseline.is_sudo_command_known(user, event.command):
                 reasons.append(f"First execution of sudo command '{event.command}' by user '{user}'")
 
@@ -66,7 +66,7 @@ class NoveltyTracker:
 
         # 6. First-time Binary Execution
         binary = event.binary_path or (event.command.split()[0] if event.command else "")
-        if event.event_type == "PROCESS_EXEC" and binary and hasattr(baseline, "is_binary_known"):
+        if event.event_type == "PROCESS_EXEC" and binary:
             if not baseline.is_binary_known(user, binary):
                 reasons.append(f"First execution of binary '{binary}' by user '{user}'")
 
@@ -78,10 +78,9 @@ class NoveltyTracker:
             )
 
         # 8. Novel Sensitive Permission Grant (TCC)
-        if event.event_type == "PERMISSION_GRANT" and event.permission_service and hasattr(baseline, "is_tcc_grant_known"):
+        if event.event_type == "PERMISSION_GRANT" and event.permission_service:
             client = event.process or event.username
             if not baseline.is_tcc_grant_known(event.permission_service, client):
                 reasons.append(f"First permission grant of '{event.permission_service}' to '{client}'")
 
-        is_novel = len(reasons) > 0
-        return is_novel, reasons
+        return len(reasons) > 0, reasons

@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import yaml
 
 from ingest.adapters import get_adapter
 from ingest.cursor import CursorManager
+from ingest.schema import AuthEvent
 from enrich.providers import get_provider
 from enrich.cache import EnrichmentCache
 from engine.baseline import Baseline
@@ -193,12 +195,28 @@ def run(args: argparse.Namespace) -> None:
         print("\n  [dry-run] Skipping report generation and baseline update.")
 
     # ── Alerts ─────────────────────────────────────────────────────
-    if (alert_events or drift_alerts):
+    if alert_events or drift_alerts:
         channels = get_channels(config)
         total_alerts = len(alert_events) + len(drift_alerts)
         print(f"\n  🚨 {total_alerts} security alert(s) ({len(alert_events)} auth/elevations, {len(drift_alerts)} integrity):\n")
+        now_iso = datetime.now().isoformat()
+        drift_scored = [
+            ScoredEvent(
+                event=AuthEvent(
+                    timestamp=now_iso,
+                    event_type="CONFIG_DRIFT",
+                    username="system",
+                    raw_line=da.message,
+                ),
+                severity="CRITICAL",
+                score=85,
+                reasons=[da.message],
+                playbook=da.playbook,
+            )
+            for da in drift_alerts
+        ]
         for ch in channels:
-            for ae in alert_events:
+            for ae in alert_events + drift_scored:
                 ch.send(ae)
     else:
         print("\n  ✓ No security invariants violated.")

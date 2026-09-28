@@ -111,6 +111,7 @@ class IntegrityChecker:
 
         now_str = datetime.now().isoformat()
         current_paths_str = set()
+        db_updates: list[tuple] = []
 
         for path in resolved_files:
             path_str = str(path)
@@ -129,7 +130,7 @@ class IntegrityChecker:
                     )
                     results.append(res)
                     if not dry_run:
-                        self._update_db(path_str, "", 0.0, 0, now_str, "DELETED")
+                        db_updates.append((path_str, "", 0.0, 0, now_str, "DELETED"))
                 continue
 
             # File exists — attempt to read and hash
@@ -147,7 +148,7 @@ class IntegrityChecker:
                 )
                 results.append(res)
                 if not dry_run:
-                    self._update_db(path_str, "", 0.0, 0, now_str, "PERMISSION_DENIED")
+                    db_updates.append((path_str, "", 0.0, 0, now_str, "PERMISSION_DENIED"))
                 continue
             except Exception as e:
                 res = IntegrityResult(
@@ -181,7 +182,7 @@ class IntegrityChecker:
                 )
                 results.append(res)
                 if not dry_run:
-                    self._update_db(path_str, sha256, mtime, size, now_str, status)
+                    db_updates.append((path_str, sha256, mtime, size, now_str, status))
             else:
                 prev_record = db_state[path_str]
                 prev_sha256 = prev_record["sha256"]
@@ -210,7 +211,7 @@ class IntegrityChecker:
                     )
                     results.append(res)
                     if not dry_run:
-                        self._update_db(path_str, sha256, mtime, size, now_str, status)
+                        db_updates.append((path_str, sha256, mtime, size, now_str, status))
                 else:
                     # Clean match
                     results.append(
@@ -224,15 +225,17 @@ class IntegrityChecker:
                         )
                     )
                     if not dry_run:
-                        self._update_db(path_str, sha256, mtime, size, now_str, "OK")
+                        db_updates.append((path_str, sha256, mtime, size, now_str, "OK"))
+
+        if db_updates:
+            self._update_db_batch(db_updates)
 
         return results
 
-    def _update_db(self, filepath: str, sha256: str, mtime: float,
-                   size: int, checked_at: str, status: str) -> None:
-        """Upsert file hash record into SQLite."""
+    def _update_db_batch(self, updates: list[tuple]) -> None:
+        """Batch upsert file hash records into SQLite in a single transaction."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 INSERT INTO file_integrity_hashes
                 (filepath, sha256, mtime, size, last_checked, status)
@@ -244,5 +247,10 @@ class IntegrityChecker:
                     last_checked = excluded.last_checked,
                     status = excluded.status
                 """,
-                (filepath, sha256, mtime, size, checked_at, status),
+                updates,
             )
+
+    def _update_db(self, filepath: str, sha256: str, mtime: float,
+                   size: int, checked_at: str, status: str) -> None:
+        """Upsert file hash record into SQLite."""
+        self._update_db_batch([(filepath, sha256, mtime, size, checked_at, status)])

@@ -49,13 +49,11 @@ class InvariantEngine:
         process = event.process or "system"
 
         # ── Correlation check: Recent user activity for kill chains ──
-        recent_events = []
-        if hasattr(baseline, "get_recent_user_events"):
-            recent_events = baseline.get_recent_user_events(
-                user,
-                window_minutes=self.sequence_window_min,
-                current_timestamp=event.timestamp,
-            )
+        recent_events = baseline.get_recent_user_events(
+            user,
+            window_minutes=self.sequence_window_min,
+            current_timestamp=event.timestamp,
+        )
 
         past_signals = set(s for r in recent_events for s in r.get("signals", []))
 
@@ -149,10 +147,10 @@ class InvariantEngine:
             invariants.append("NOVEL_SUDO_COMMAND" if event.command else "FIRST_TIME_SUDO_USER")
 
         elif event_type == "PROCESS_EXEC" and is_novel:
-            severity = "WARNING" if is_novel and user == "root" else "NOTICE"
+            severity = "WARNING" if user == "root" else "NOTICE"
             numeric_score = 50 if user == "root" else 20
-            invariants.append("NOVEL_BINARY_EXECUTION" if is_novel else "PROCESS_EXEC")
-            if is_novel and user == "root":
+            invariants.append("NOVEL_BINARY_EXECUTION")
+            if user == "root":
                 reasons.append(f"First-seen binary execution under root: '{binary}'")
 
         elif event_type == "login_success" and is_novel:
@@ -163,7 +161,7 @@ class InvariantEngine:
         elif event_type == "login_failure":
             # Check for burst / brute-force
             recent_failures = 0
-            if hasattr(baseline, "get_recent_failures") and event.source_ip:
+            if event.source_ip:
                 try:
                     event_dt = datetime.fromisoformat(event.timestamp)
                 except (ValueError, TypeError):

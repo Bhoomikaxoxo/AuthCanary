@@ -10,7 +10,6 @@ Serves the macOS Activity Monitor & Console dashboard locally, with:
 from __future__ import annotations
 
 import json
-import os
 import platform
 import queue
 import socket
@@ -33,6 +32,7 @@ from engine.invariants import InvariantEngine
 from engine.novelty import NoveltyTracker
 from engine.process_monitor import ProcessMonitor
 from engine.persistence_monitor import PersistenceMonitor
+from output.utils import DotDict
 
 
 class SystemLogStreamer:
@@ -195,38 +195,7 @@ class SystemLogStreamer:
             if not event:
                 continue
 
-            # Zero-Math Novelty Diff
-            is_novel, novelty_reasons = self.novelty.evaluate(event, None, self.baseline)
-
-            # Security Invariants Evaluation
-            scored = self.invariants.evaluate(
-                event=event,
-                enrichment=None,
-                baseline=self.baseline,
-                is_novel=is_novel,
-                novelty_reasons=novelty_reasons,
-            )
-
-            # Record event in SQLite baseline
-            try:
-                self.baseline.record_event(
-                    event=event,
-                    enrichment=None,
-                    score=scored.score,
-                    reasons=scored.reasons,
-                    signals=scored.signals,
-                    severity=scored.severity,
-                    invariants=scored.invariants,
-                    is_novel=is_novel,
-                    command=event.command,
-                    process=event.process,
-                )
-            except Exception:
-                pass
-
-            # Broadcast to live dashboard clients
-            payload = scored.to_dict()
-            self.broadcast(payload)
+            self._process_and_broadcast(event)
 
 
 # Global streamer instance shared across HTTP threads
@@ -283,14 +252,14 @@ class AuthCanaryHandler(BaseHTTPRequestHandler):
             # Support ?limit=N query param (default 200)
             qs = parse_qs(urlparse(self.path).query)
             limit = min(int(qs.get("limit", [200])[0]), 1000)
-            baseline = Baseline(db_path=self.db_path)
+            baseline = _STREAMER.baseline if _STREAMER else Baseline(db_path=self.db_path)
             events = baseline.get_all_logged_events(limit=limit)
             self._send_json(200, events)
             return
 
         # 3. Process Breakdown Statistics
         if path == "/api/stats":
-            baseline = Baseline(db_path=self.db_path)
+            baseline = _STREAMER.baseline if _STREAMER else Baseline(db_path=self.db_path)
             stats = baseline.get_process_stats()
             self._send_json(200, stats)
             return
@@ -429,7 +398,7 @@ def _regenerate_report_from_history(
     if not recent:
         return  # Nothing to show, leave existing report or let placeholder kick in
 
-    template_dir = output_dir
+    template_dir = Path(__file__).parent
     template_file = template_dir / "template.html"
     if not template_file.exists():
         return
@@ -440,21 +409,7 @@ def _regenerate_report_from_history(
     )
     template = env.get_template("template.html")
 
-    # Build lightweight event objects for the Jinja template
-    class _Obj:
-        def __init__(self, d: dict):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    setattr(self, k, _Obj(v))
-                elif isinstance(v, list):
-                    setattr(self, k, [
-                        _Obj(item) if isinstance(item, dict) else item
-                        for item in v
-                    ])
-                else:
-                    setattr(self, k, v)
-
-    host_info = _Obj({
+    host_info = DotDict({
         "hostname": socket.gethostname(),
         "platform": f"{platform.system()} {platform.machine()}",
     })
@@ -473,7 +428,7 @@ def _regenerate_report_from_history(
         )
         raw_line = ev.get("raw_line", "")
 
-        obj = _Obj({
+        obj = DotDict({
             "score": ev.get("score", 0),
             "reasons": ev.get("reasons", []),
             "severity": ev.get("severity", "INFO"),
@@ -481,7 +436,7 @@ def _regenerate_report_from_history(
             "process": ev.get("process", "system"),
             "is_novel": ev.get("is_novel", False),
             "command": ev.get("command", ""),
-            "event": _Obj({
+            "event": DotDict({
                 "timestamp": ev.get("timestamp", ""),
                 "username": ev.get("username", ""),
                 "process": ev.get("process", "system"),

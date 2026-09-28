@@ -8,7 +8,9 @@ Lives in the same database as the baseline tables.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from engine.models import EnrichmentResult
 from enrich.providers import IPEnrichmentProvider
@@ -19,13 +21,23 @@ class EnrichmentCache:
 
     def __init__(self, db_path: str, provider: IPEnrichmentProvider,
                  ttl_days: int = 30) -> None:
-        self.db_path = db_path
+        self.db_path = str(Path(db_path).expanduser())
         self.provider = provider
         self.ttl = timedelta(days=ttl_days)
+        self._local = threading.local()
         self._init_db()
 
+    def _get_conn(self) -> sqlite3.Connection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute("PRAGMA journal_mode=WAL")
+            self._local.conn = conn
+        return conn
+
     def _init_db(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._get_conn()
+        with conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS ip_cache (
                     ip          TEXT PRIMARY KEY,
@@ -52,12 +64,12 @@ class EnrichmentCache:
         return result
 
     def _get_cached(self, ip: str) -> EnrichmentResult | None:
-        with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT asn, org, country, city, lat, lon, fetched_at "
-                "FROM ip_cache WHERE ip = ?",
-                (ip,),
-            ).fetchone()
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT asn, org, country, city, lat, lon, fetched_at "
+            "FROM ip_cache WHERE ip = ?",
+            (ip,),
+        ).fetchone()
 
         if row is None:
             return None
@@ -74,7 +86,8 @@ class EnrichmentCache:
         )
 
     def _store(self, result: EnrichmentResult) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        conn = self._get_conn()
+        with conn:
             conn.execute(
                 "INSERT OR REPLACE INTO ip_cache "
                 "(ip, asn, org, country, city, lat, lon, fetched_at) "

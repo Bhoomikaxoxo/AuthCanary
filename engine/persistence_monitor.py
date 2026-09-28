@@ -59,7 +59,7 @@ class PersistenceMonitor:
         current = self._scan_all()
         for path_str, item in current.items():
             self._known_snapshots[path_str] = item["hash"]
-            if self.baseline and hasattr(self.baseline, "record_persistence"):
+            if self.baseline:
                 self.baseline.record_persistence(path_str, item["label"], item["hash"])
         self._initialized = True
 
@@ -84,7 +84,7 @@ class PersistenceMonitor:
                 # Completely new persistence item
                 self._known_snapshots[path_str] = curr_hash
                 is_known_in_db = False
-                if self.baseline and hasattr(self.baseline, "is_persistence_known"):
+                if self.baseline:
                     is_known_in_db = self.baseline.is_persistence_known(path_str, curr_hash)
 
                 if not is_known_in_db:
@@ -100,7 +100,7 @@ class PersistenceMonitor:
                             raw_line=f"PERSISTENCE ADDITION: {path_str} [{label}] ({cmd})",
                         )
                     )
-                    if self.baseline and hasattr(self.baseline, "record_persistence"):
+                    if self.baseline:
                         self.baseline.record_persistence(path_str, label, curr_hash, now)
 
             elif self._known_snapshots[path_str] != curr_hash:
@@ -118,7 +118,7 @@ class PersistenceMonitor:
                         raw_line=f"PERSISTENCE MODIFIED: {path_str} [{label}]",
                     )
                 )
-                if self.baseline and hasattr(self.baseline, "record_persistence"):
+                if self.baseline:
                     self.baseline.record_persistence(path_str, label, curr_hash, now)
 
         return events
