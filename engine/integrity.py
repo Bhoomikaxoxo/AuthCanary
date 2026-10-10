@@ -250,7 +250,4 @@ class IntegrityChecker:
                 updates,
             )
 
-    def _update_db(self, filepath: str, sha256: str, mtime: float,
-                   size: int, checked_at: str, status: str) -> None:
-        """Upsert file hash record into SQLite."""
-        self._update_db_batch([(filepath, sha256, mtime, size, checked_at, status)])
+

@@ -77,6 +77,37 @@ _RE_SSH_KEY = re.compile(
     r".*for user (?P<user>\S+)"
 )
 
+# ── Journald inline patterns (pre-compiled for hot-path performance) ──
+
+_RE_JD_LOGIN = re.compile(
+    r"(Accepted|Failed)\s+(password|publickey)\s+for\s+"
+    r"(?:invalid\s+user\s+)?(\S+)\s+from\s+(\S+)"
+)
+_RE_JD_SUDO = re.compile(r"sudo:\s+(\S+)\s+:")
+
+# ── macOS unified-log inline patterns ────────────────────────────────
+
+_RE_MAC_LOGIN = _RE_JD_LOGIN  # same pattern
+_RE_MAC_SUDO = re.compile(
+    r"(?:sudo:\s*)?(\S+)\s*:\s*"
+    r"(?:(?P<failed>a password is required|1 incorrect password attempt"
+    r"|conversational failed|auth could not identify password for"
+    r"|incorrect password)\s*;\s*)?"
+    r"TTY=\S+\s*;\s*PWD=.*?;\s*USER=(\S+)\s*;\s*COMMAND=(.*)"
+)
+_RE_MAC_AUTH_RIGHT = re.compile(
+    r"authenticated as user (\S+) \(UID \d+\) for right '([^']+)'"
+)
+_RE_MAC_AUTH_FAIL = re.compile(r"for user\s+(\S+)")
+_RE_MAC_AUTH_SUCCEED = re.compile(
+    r"Succeeded authorizing right '([^']+)' by client '([^']*)'"
+)
+_RE_MAC_TCC_SVC = re.compile(r"(kTCCService[A-Za-z]+)")
+_RE_MAC_TCC_ID = re.compile(r"identifier=([A-Za-z0-9_.\-]+)")
+_RE_LAST_LOGIN = re.compile(
+    r"^(\S+)\s+(\S+)\s+\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}:\d{2})"
+)
+
 
 def _parse_syslog_timestamp(month: str, day: str, time_str: str,
                             ref_year: int | None = None) -> str:
@@ -251,7 +282,7 @@ class LinuxJournaldAdapter(OSAdapter):
 
     def _parse_message(self, msg: str, entry: dict,
                        raw_line: str) -> AuthEvent | None:
-        # Reuse the same regex patterns
+        # Resolve timestamp once
         ts_usec = entry.get("__REALTIME_TIMESTAMP", "")
         if ts_usec:
             try:
@@ -261,10 +292,8 @@ class LinuxJournaldAdapter(OSAdapter):
         else:
             ts = datetime.now().isoformat()
 
-        # Accepted / Failed login
-        m = re.search(
-            r"(Accepted|Failed)\s+(password|publickey)\s+for\s+"
-            r"(?:invalid\s+user\s+)?(\S+)\s+from\s+(\S+)", msg)
+        # Accepted / Failed login — use pre-compiled constant
+        m = _RE_JD_LOGIN.search(msg)
         if m:
             return AuthEvent(
                 timestamp=ts,
@@ -275,8 +304,8 @@ class LinuxJournaldAdapter(OSAdapter):
                 raw_line=raw_line,
             )
 
-        # sudo
-        m = re.search(r"sudo:\s+(\S+)\s+:", msg)
+        # sudo — use pre-compiled constant
+        m = _RE_JD_SUDO.search(msg)
         if m:
             return AuthEvent(
                 timestamp=ts,
@@ -397,7 +426,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         for line in res.stdout.strip().splitlines():
             if not line or any(k in line for k in ("reboot", "shutdown", "wtmp begins")):
                 continue
-            m = re.match(r"^(\S+)\s+(\S+)\s+\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}:\d{2})", line)
+            m = _RE_LAST_LOGIN.match(line)
             if m:
                 user, tty, month, day, time_str = m.groups()
                 try:
@@ -442,12 +471,10 @@ class MacOSUnifiedLogAdapter(OSAdapter):
         pid = entry.get("processID", 0)
         subsystem = entry.get("subsystem", "")
         category = entry.get("category", "")
-        raw_line = json.dumps(entry)
+        # raw_line serialisation is deferred until we know we'll return an event
 
-        # 1. SSH login accepted / failed
-        m = re.search(
-            r"(Accepted|Failed)\s+(password|publickey)\s+for\s+"
-            r"(?:invalid\s+user\s+)?(\S+)\s+from\s+(\S+)", msg)
+        # 1. SSH login accepted / failed — pre-compiled pattern
+        m = _RE_MAC_LOGIN.search(msg)
         if m:
             return AuthEvent(
                 timestamp=ts,
@@ -455,18 +482,15 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=m.group(3),
                 source_ip=m.group(4),
                 auth_method=m.group(2),
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process="sshd",
                 pid=pid,
                 subsystem=subsystem or "com.apple.sshd",
                 category=category or "authentication",
             )
 
-        # 2. sudo execution
-        m = re.search(
-            r"(?:sudo:\s*)?(\S+)\s*:\s*(?:(?P<failed>a password is required|1 incorrect password attempt|conversational failed|auth could not identify password for|incorrect password)\s*;\s*)?TTY=\S+\s*;\s*PWD=.*?;\s*USER=(\S+)\s*;\s*COMMAND=(.*)",
-            msg,
-        )
+        # 2. sudo execution — pre-compiled pattern
+        m = _RE_MAC_SUDO.search(msg)
         if m:
             user = m.group(1)
             is_failed = bool(m.group("failed"))
@@ -477,7 +501,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=user,
                 source_ip="",
                 auth_method="sudo",
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process="sudo",
                 pid=pid,
                 subsystem=subsystem or "com.apple.sudo",
@@ -485,18 +509,19 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 command=cmd,
             )
 
-        # 3. macOS authorization right granted (authd)
-        m = re.search(r"authenticated as user (\S+) \(UID \d+\) for right '([^']+)'", msg)
+        # 3. macOS authorization right granted (authd) — pre-compiled pattern
+        m = _RE_MAC_AUTH_RIGHT.search(msg)
         if m:
             right = m.group(2)
-            method = "touch_id" if "biometry" in msg.lower() or "touchid" in msg.lower() else "password"
+            msg_lower = msg.lower()
+            method = "touch_id" if "biometry" in msg_lower or "touchid" in msg_lower else "password"
             return AuthEvent(
                 timestamp=ts,
                 event_type="login_success",
                 username=m.group(1),
                 source_ip="",
                 auth_method=method,
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process="authd",
                 pid=pid,
                 subsystem=subsystem or "com.apple.Authorization",
@@ -504,9 +529,9 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 command=right,
             )
 
-        # 4. macOS authorization failure
+        # 4. macOS authorization failure — pre-compiled pattern
         if "Failed authorizing right" in msg or "Failed to authenticate" in msg:
-            m = re.search(r"for user\s+(\S+)", msg)
+            m = _RE_MAC_AUTH_FAIL.search(msg)
             user = m.group(1) if m else os.environ.get("USER", "system")
             return AuthEvent(
                 timestamp=ts,
@@ -514,16 +539,16 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=user,
                 source_ip="",
                 auth_method="system",
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process=proc_name or "authd",
                 pid=pid,
                 subsystem=subsystem or "com.apple.Authorization",
                 category=category or "authd",
             )
 
-        # 5. Generic successful authorization right evaluation
+        # 5. Generic successful authorization right evaluation — pre-compiled pattern
         if "Succeeded authorizing right" in msg:
-            m = re.search(r"Succeeded authorizing right '([^']+)' by client '([^']+)'", msg)
+            m = _RE_MAC_AUTH_SUCCEED.search(msg)
             right = m.group(1) if m else ""
             client = m.group(2).split("/")[-1] if m else proc_name
             user = os.environ.get("USER", "system")
@@ -533,7 +558,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=user,
                 source_ip="",
                 auth_method="system",
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process=client or proc_name,
                 pid=pid,
                 subsystem=subsystem or "com.apple.Authorization",
@@ -541,10 +566,10 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 command=right,
             )
 
-        # 6. macOS TCC Permission Grant / Evaluation
-        if ("TCC" in subsystem or "tccd" in proc_name or "kTCCService" in msg):
+        # 6. macOS TCC Permission Grant / Evaluation — pre-compiled patterns
+        if "TCC" in subsystem or "tccd" in proc_name or "kTCCService" in msg:
             # Ignore internal routine replies, generic checks without service
-            m_svc = re.search(r"(kTCCService[A-Za-z]+)", msg)
+            m_svc = _RE_MAC_TCC_SVC.search(msg)
             if not m_svc:
                 return None
             service = m_svc.group(1)
@@ -552,25 +577,26 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 return None
 
             # Only emit for meaningful access requests, prompts, or evaluations
+            _SENSITIVE_TCC = {
+                "kTCCServiceScreenCapture", "kTCCServiceMicrophone",
+                "kTCCServiceCamera", "kTCCServiceListenEvent",
+                "kTCCServiceAccessibility", "kTCCServiceSystemPolicyAllFiles",
+            }
+            msg_lower = msg.lower()
             is_relevant = (
                 "TCCAccessRequest" in msg
                 or "REQUEST_MSG" in msg
                 or "AUTH_VALUE" in msg
                 or "evaluated for" in msg
-                or "access granted" in msg.lower()
-                or "access denied" in msg.lower()
-                or "kTCCServiceScreenCapture" in service
-                or "kTCCServiceMicrophone" in service
-                or "kTCCServiceCamera" in service
-                or "kTCCServiceListenEvent" in service
-                or "kTCCServiceAccessibility" in service
-                or "kTCCServiceSystemPolicyAllFiles" in service
+                or "access granted" in msg_lower
+                or "access denied" in msg_lower
+                or service in _SENSITIVE_TCC
             )
             if not is_relevant:
                 return None
 
-            # Extract client application
-            client_m = re.search(r"identifier=([A-Za-z0-9_.-]+)", msg)
+            # Extract client application — pre-compiled pattern
+            client_m = _RE_MAC_TCC_ID.search(msg)
             client = client_m.group(1).split(".")[-1] if client_m else proc_name
             if client in ("tccd", "system", "TCC") and proc_name not in ("tccd", "system", "TCC"):
                 client = proc_name
@@ -584,7 +610,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=user,
                 source_ip="",
                 auth_method="system",
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process=client,
                 pid=pid,
                 subsystem=subsystem or "com.apple.TCC",
@@ -602,7 +628,7 @@ class MacOSUnifiedLogAdapter(OSAdapter):
                 username=user,
                 source_ip="127.0.0.1",
                 auth_method="system",
-                raw_line=raw_line,
+                raw_line=json.dumps(entry),
                 process=proc_name,
                 pid=pid,
                 subsystem=subsystem or "com.apple.launchd",

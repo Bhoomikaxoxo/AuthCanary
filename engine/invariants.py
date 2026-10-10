@@ -57,10 +57,8 @@ class InvariantEngine:
 
         past_signals = set(s for r in recent_events for s in r.get("signals", []))
 
-        has_prior_remote_access = any(
-            s in past_signals
-            for s in ("new_asn", "new_ip_new_asn", "novel_remote_origin", "brute_force_burst")
-        )
+        _REMOTE_SIGNALS = {"new_asn", "new_ip_new_asn", "novel_remote_origin", "brute_force_burst"}
+        has_prior_remote_access = bool(past_signals & _REMOTE_SIGNALS)
 
         binary = event.binary_path or (event.command.split()[0] if event.command else "")
         cmd_full = (event.command or "") + " " + (event.arguments or "")

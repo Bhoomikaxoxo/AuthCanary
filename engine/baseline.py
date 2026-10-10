@@ -437,21 +437,19 @@ class Baseline:
         """Return event count, warning count, and critical count by process."""
         stats: dict[str, dict] = {}
         conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT COALESCE(process, 'system') as proc, severity, COUNT(*) as cnt "
             "FROM event_log GROUP BY proc, severity"
         ).fetchall()
-        conn.row_factory = None
-        for r in rows:
-            proc = r["proc"] or "system"
+        # Use positional indexing — no row_factory mutation on the shared connection
+        for proc, sev, cnt in rows:
+            proc = proc or "system"
             if proc not in stats:
                 stats[proc] = {"count": 0, "warnings": 0, "critical": 0}
-            cnt = r["cnt"]
             stats[proc]["count"] += cnt
-            if r["severity"] in ("WARNING", "CRITICAL"):
+            if sev in ("WARNING", "CRITICAL"):
                 stats[proc]["warnings"] += cnt
-            if r["severity"] == "CRITICAL":
+            if sev == "CRITICAL":
                 stats[proc]["critical"] += cnt
         return stats
 
@@ -579,7 +577,7 @@ class Baseline:
                      is_novel: bool = False,
                      command: str = "",
                      process: str = "") -> None:
-        """Record a processed event and update all baseline tables."""
+        """Record a processed event and update all baseline tables in a single transaction."""
         now = datetime.now().isoformat()
         signals_str = json.dumps(signals or [])
         invariants_str = json.dumps(invariants or [])
@@ -588,114 +586,116 @@ class Baseline:
         reasons_list = reasons or []
 
         conn = self._get_conn()
-        # Log the event with structured signals and invariants
-        conn.execute(
-            "INSERT INTO event_log "
-            "(timestamp, event_type, username, source_ip, score, reasons, raw_line, "
-            "signals_json, severity, invariants_json, process, is_novel, command) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (event.timestamp, event.event_type, event.username,
-             event.source_ip, score, "; ".join(reasons_list), event.raw_line,
-             signals_str, severity, invariants_str, effective_proc, int(is_novel), effective_cmd),
-        )
-
-        # Update hour histogram for logins
-        if event.event_type in ("login_success", "login_failure"):
-            try:
-                hour = datetime.fromisoformat(event.timestamp).hour
-            except ValueError:
-                hour = 0
-            col = f"h{hour}"
+        with conn:
+            # Log the event with structured signals and invariants
             conn.execute(
-                f"INSERT INTO login_hour_histogram (username, {col}) "
-                f"VALUES (?, 1) "
-                f"ON CONFLICT(username) DO UPDATE SET {col} = {col} + 1",
-                (event.username,),
+                "INSERT INTO event_log "
+                "(timestamp, event_type, username, source_ip, score, reasons, raw_line, "
+                "signals_json, severity, invariants_json, process, is_novel, command) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (event.timestamp, event.event_type, event.username,
+                 event.source_ip, score, "; ".join(reasons_list), event.raw_line,
+                 signals_str, severity, invariants_str, effective_proc, int(is_novel), effective_cmd),
             )
 
-        # Update seen IPs
-        if event.source_ip:
-            conn.execute(
-                "INSERT INTO seen_ips (username, ip, first_seen, last_seen, count) "
-                "VALUES (?, ?, ?, ?, 1) "
-                "ON CONFLICT(username, ip) DO UPDATE SET "
-                "last_seen = ?, count = count + 1",
-                (event.username, event.source_ip, now, now, now),
-            )
-
-        # Update seen ASNs
-        if enrichment and enrichment.asn not in ("unknown", "private"):
-            conn.execute(
-                "INSERT INTO seen_asns (username, asn, first_seen, last_seen, count) "
-                "VALUES (?, ?, ?, ?, 1) "
-                "ON CONFLICT(username, asn) DO UPDATE SET "
-                "last_seen = ?, count = count + 1",
-                (event.username, enrichment.asn, now, now, now),
-            )
-
-        # Update SSH keys
-        if event.event_type == "ssh_key_added":
-            fp = self._extract_fingerprint(event.raw_line)
-            if fp:
+            # Update hour histogram for logins
+            if event.event_type in ("login_success", "login_failure"):
+                try:
+                    hour = datetime.fromisoformat(event.timestamp).hour
+                except ValueError:
+                    hour = 0
+                col = f"h{hour}"
                 conn.execute(
-                    "INSERT OR IGNORE INTO seen_ssh_keys "
-                    "(username, fingerprint, first_seen) VALUES (?, ?, ?)",
-                    (event.username, fp, now),
+                    f"INSERT INTO login_hour_histogram (username, {col}) "
+                    f"VALUES (?, 1) "
+                    f"ON CONFLICT(username) DO UPDATE SET {col} = {col} + 1",
+                    (event.username,),
                 )
 
-        # Update sudo users and commands
-        if event.event_type in ("sudo_used", "privilege_elevation") or effective_proc == "sudo":
-            conn.execute(
-                "INSERT INTO sudo_users (username, first_seen, count) "
-                "VALUES (?, ?, 1) "
-                "ON CONFLICT(username) DO UPDATE SET count = count + 1",
-                (event.username, now),
-            )
-            if effective_cmd:
+            # Update seen IPs
+            if event.source_ip:
                 conn.execute(
-                    "INSERT INTO seen_sudo_commands (username, command, first_seen, count) "
-                    "VALUES (?, ?, ?, 1) "
-                    "ON CONFLICT(username, command) DO UPDATE SET count = count + 1",
-                    (event.username, effective_cmd, now),
+                    "INSERT INTO seen_ips (username, ip, first_seen, last_seen, count) "
+                    "VALUES (?, ?, ?, ?, 1) "
+                    "ON CONFLICT(username, ip) DO UPDATE SET "
+                    "last_seen = ?, count = count + 1",
+                    (event.username, event.source_ip, now, now, now),
                 )
 
-        # Update seen binaries
-        if event.event_type == "PROCESS_EXEC":
-            bin_path = getattr(event, "binary_path", "") or (effective_cmd.split()[0] if effective_cmd else "")
-            if bin_path:
+            # Update seen ASNs
+            if enrichment and enrichment.asn not in ("unknown", "private"):
                 conn.execute(
-                    "INSERT INTO seen_binaries (username, binary_path, first_seen, count) "
-                    "VALUES (?, ?, ?, 1) "
-                    "ON CONFLICT(username, binary_path) DO UPDATE SET count = count + 1",
-                    (event.username, bin_path, now),
+                    "INSERT INTO seen_asns (username, asn, first_seen, last_seen, count) "
+                    "VALUES (?, ?, ?, ?, 1) "
+                    "ON CONFLICT(username, asn) DO UPDATE SET "
+                    "last_seen = ?, count = count + 1",
+                    (event.username, enrichment.asn, now, now, now),
                 )
 
-        # Update seen TCC grants
-        if event.event_type == "PERMISSION_GRANT" and getattr(event, "permission_service", ""):
-            client = effective_proc or event.username or "system"
-            conn.execute(
-                "INSERT INTO seen_tcc_grants (service, client_id, first_seen) "
-                "VALUES (?, ?, ?) "
-                "ON CONFLICT(service, client_id) DO NOTHING",
-                (event.permission_service, client, now),
-            )
+            # Update SSH keys
+            if event.event_type == "ssh_key_added":
+                fp = self._extract_fingerprint(event.raw_line)
+                if fp:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO seen_ssh_keys "
+                        "(username, fingerprint, first_seen) VALUES (?, ?, ?)",
+                        (event.username, fp, now),
+                    )
 
-        conn.execute(
-            "UPDATE warmup_state SET events_processed = events_processed + 1 WHERE id = 1"
-        )
-        conn.commit()
+            # Update sudo users and commands
+            if event.event_type in ("sudo_used", "privilege_elevation") or effective_proc == "sudo":
+                conn.execute(
+                    "INSERT INTO sudo_users (username, first_seen, count) "
+                    "VALUES (?, ?, 1) "
+                    "ON CONFLICT(username) DO UPDATE SET count = count + 1",
+                    (event.username, now),
+                )
+                if effective_cmd:
+                    conn.execute(
+                        "INSERT INTO seen_sudo_commands (username, command, first_seen, count) "
+                        "VALUES (?, ?, ?, 1) "
+                        "ON CONFLICT(username, command) DO UPDATE SET count = count + 1",
+                        (event.username, effective_cmd, now),
+                    )
+
+            # Update seen binaries
+            if event.event_type == "PROCESS_EXEC":
+                bin_path = getattr(event, "binary_path", "") or (effective_cmd.split()[0] if effective_cmd else "")
+                if bin_path:
+                    conn.execute(
+                        "INSERT INTO seen_binaries (username, binary_path, first_seen, count) "
+                        "VALUES (?, ?, ?, 1) "
+                        "ON CONFLICT(username, binary_path) DO UPDATE SET count = count + 1",
+                        (event.username, bin_path, now),
+                    )
+
+            # Update seen TCC grants
+            if event.event_type == "PERMISSION_GRANT" and getattr(event, "permission_service", ""):
+                client = effective_proc or event.username or "system"
+                conn.execute(
+                    "INSERT INTO seen_tcc_grants (service, client_id, first_seen) "
+                    "VALUES (?, ?, ?) "
+                    "ON CONFLICT(service, client_id) DO NOTHING",
+                    (event.permission_service, client, now),
+                )
+
+            conn.execute(
+                "UPDATE warmup_state SET events_processed = events_processed + 1 WHERE id = 1"
+            )
 
     def get_stats(self) -> dict:
         """Return summary statistics for the report."""
         conn = self._get_conn()
-        total_events = conn.execute(
-            "SELECT COUNT(*) FROM event_log").fetchone()[0]
-        unique_users = conn.execute(
-            "SELECT COUNT(DISTINCT username) FROM event_log").fetchone()[0]
+        # Single round-trip for scalar aggregates
+        total_events, unique_users = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT username) FROM event_log"
+        ).fetchone()
         unique_ips = conn.execute(
-            "SELECT COUNT(DISTINCT ip) FROM seen_ips").fetchone()[0]
+            "SELECT COUNT(DISTINCT ip) FROM seen_ips"
+        ).fetchone()[0]
         unique_asns = conn.execute(
-            "SELECT COUNT(DISTINCT asn) FROM seen_asns").fetchone()[0]
+            "SELECT COUNT(DISTINCT asn) FROM seen_asns"
+        ).fetchone()[0]
         warmup_row = conn.execute(
             "SELECT warmup_complete FROM warmup_state WHERE id = 1"
         ).fetchone()
@@ -710,19 +710,19 @@ class Baseline:
     def reset(self) -> None:
         """Wipe all baseline data — forces full relearning."""
         conn = self._get_conn()
-        for table in (
-            "login_hour_histogram", "seen_ips", "seen_asns",
-            "seen_ssh_keys", "sudo_users", "seen_sudo_commands",
-            "seen_binaries", "seen_persistence", "seen_tcc_grants",
-            "event_log", "warmup_state",
-        ):
-            conn.execute(f"DELETE FROM {table}")
-        conn.execute(
-            "INSERT INTO warmup_state (id, start_date, events_processed) "
-            "VALUES (1, ?, 0)",
-            (datetime.now().isoformat(),),
-        )
-        conn.commit()
+        with conn:
+            for table in (
+                "login_hour_histogram", "seen_ips", "seen_asns",
+                "seen_ssh_keys", "sudo_users", "seen_sudo_commands",
+                "seen_binaries", "seen_persistence", "seen_tcc_grants",
+                "event_log", "warmup_state",
+            ):
+                conn.execute(f"DELETE FROM {table}")
+            conn.execute(
+                "INSERT INTO warmup_state (id, start_date, events_processed) "
+                "VALUES (1, ?, 0)",
+                (datetime.now().isoformat(),),
+            )
 
     @staticmethod
     def _extract_fingerprint(raw_line: str) -> str:
