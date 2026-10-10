@@ -51,6 +51,17 @@ alerts:
     enabled: false
     topic: "authcanary-alerts"
     server: "https://ntfy.sh"
+  webhook:
+    enabled: false
+    url: "https://example.com/api/security-alerts"
+    headers:
+      Authorization: "Bearer YOUR_TOKEN"
+  slack:
+    enabled: false
+    webhook_url: "https://hooks.slack.com/services/T00/B00/XXXX"
+  discord:
+    enabled: false
+    webhook_url: "https://discord.com/api/webhooks/000/XXXX"
 
 output:
   directory: "./output"

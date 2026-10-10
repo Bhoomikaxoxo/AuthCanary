@@ -122,6 +122,21 @@ integrity:
     - "~/.ssh/authorized_keys"
     - "/etc/sudoers"
 
+alerts:
+  console: true
+  ntfy:
+    enabled: false
+    topic: "authcanary-alerts"
+  webhook:
+    enabled: false
+    url: "https://example.com/alerts"
+  slack:
+    enabled: false
+    webhook_url: "https://hooks.slack.com/services/..."
+  discord:
+    enabled: false
+    webhook_url: "https://discord.com/api/webhooks/..."
+
 storage:
   db_path: "~/.authcanary/authcanary.db"
   cursor_path: "~/.authcanary/cursor.json"

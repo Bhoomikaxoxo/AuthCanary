@@ -18,7 +18,14 @@ from ingest.schema import AuthEvent
 from engine.models import EnrichmentResult, ScoredEvent
 from engine.baseline import Baseline
 from output.report import generate_report
-from output.alerts import ConsoleChannel, NtfyChannel, get_channels
+from output.alerts import (
+    ConsoleChannel,
+    NtfyChannel,
+    WebhookChannel,
+    SlackWebhookChannel,
+    DiscordWebhookChannel,
+    get_channels,
+)
 
 
 # ── Report Generation Tests ────────────────────────────────────────
@@ -193,6 +200,141 @@ def test_ntfy_channel_failure_graceful(mock_post):
     assert result is False
 
 
+@patch("output.alerts.requests.post")
+def test_webhook_channel_success(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_post.return_value = mock_resp
+
+    ch = WebhookChannel(
+        url="https://example.com/alerts",
+        headers={"Authorization": "Bearer secret-token"},
+    )
+    ev = AuthEvent(
+        timestamp="2024-01-15T14:30:00",
+        event_type="UNAUTHORIZED_KEY_ADD",
+        username="attacker",
+        source_ip="198.51.100.1",
+    )
+    scored = ScoredEvent(
+        event=ev,
+        severity="CRITICAL",
+        score=95,
+        reasons=["Unauthorized SSH key installed"],
+        playbook="Remove unauthorized public key",
+    )
+
+    assert ch.send(scored) is True
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert args[0] == "https://example.com/alerts"
+    assert kwargs["headers"]["Authorization"] == "Bearer secret-token"
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert kwargs["json"]["score"] == 95
+    assert kwargs["json"]["event"]["username"] == "attacker"
+
+
+@patch("output.alerts.requests.post")
+def test_webhook_channel_failure(mock_post):
+    mock_post.side_effect = requests.RequestException("Connection refused")
+    ch = WebhookChannel(url="https://example.com/alerts")
+    ev = AuthEvent(timestamp="2024-01-15T14:30:00", event_type="sudo_used", username="test")
+    scored = ScoredEvent(event=ev, score=50)
+
+    assert ch.send(scored) is False
+
+
+@patch("output.alerts.requests.post")
+def test_slack_webhook_channel_success(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_post.return_value = mock_resp
+
+    ch = SlackWebhookChannel(webhook_url="https://hooks.slack.com/services/T00/B00/X")
+    ev = AuthEvent(
+        timestamp="2024-01-15T14:30:00",
+        event_type="KILL_CHAIN_ESCALATION",
+        username="mallory",
+        source_ip="203.0.113.5",
+    )
+    scored = ScoredEvent(
+        event=ev,
+        severity="CRITICAL",
+        score=90,
+        reasons=["Multi-stage escalation detected"],
+        playbook="Isolate host immediately",
+    )
+
+    assert ch.send(scored) is True
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert args[0] == "https://hooks.slack.com/services/T00/B00/X"
+    payload = kwargs["json"]
+    assert "mallory" in payload["text"]
+    assert len(payload["attachments"]) == 1
+    att = payload["attachments"][0]
+    assert att["color"] == "#E01E5A"  # Red for critical
+    assert any(f["title"] == "User" and "`mallory`" in f["value"] for f in att["fields"])
+    assert "Isolate host immediately" in att["text"]
+
+
+@patch("output.alerts.requests.post")
+def test_slack_webhook_channel_failure(mock_post):
+    mock_post.side_effect = requests.RequestException("Slack timeout")
+    ch = SlackWebhookChannel(webhook_url="https://hooks.slack.com/test")
+    ev = AuthEvent(timestamp="2024-01-15T14:30:00", event_type="login_success", username="user")
+    scored = ScoredEvent(event=ev, score=10)
+
+    assert ch.send(scored) is False
+
+
+@patch("output.alerts.requests.post")
+def test_discord_webhook_channel_success(mock_post):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 204  # Discord standard webhook response
+    mock_post.return_value = mock_resp
+
+    ch = DiscordWebhookChannel(
+        webhook_url="https://discord.com/api/webhooks/123/xyz",
+        username="CustomCanary",
+    )
+    ev = AuthEvent(
+        timestamp="2024-01-15T14:30:00",
+        event_type="SUSPICIOUS_SUDO",
+        username="eve",
+        source_ip="192.0.2.1",
+    )
+    scored = ScoredEvent(
+        event=ev,
+        severity="WARNING",
+        score=65,
+        reasons=["Unusual binary executed with sudo"],
+        playbook="Check process tree",
+    )
+
+    assert ch.send(scored) is True
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert args[0] == "https://discord.com/api/webhooks/123/xyz"
+    payload = kwargs["json"]
+    assert payload["username"] == "CustomCanary"
+    assert len(payload["embeds"]) == 1
+    embed = payload["embeds"][0]
+    assert embed["color"] == 0xF1C40F  # Gold/Yellow for warning
+    assert any(f["name"] == "User" and "`eve`" in f["value"] for f in embed["fields"])
+    assert "Unusual binary executed" in embed["description"]
+
+
+@patch("output.alerts.requests.post")
+def test_discord_webhook_channel_failure(mock_post):
+    mock_post.side_effect = requests.RequestException("Discord 500")
+    ch = DiscordWebhookChannel(webhook_url="https://discord.com/api/webhooks/123/xyz")
+    ev = AuthEvent(timestamp="2024-01-15T14:30:00", event_type="login_success", username="user")
+    scored = ScoredEvent(event=ev, score=10)
+
+    assert ch.send(scored) is False
+
+
 def test_get_channels_factory():
     config_all = {
         "alerts": {
@@ -201,17 +343,35 @@ def test_get_channels_factory():
                 "enabled": True,
                 "topic": "custom-topic",
             },
+            "webhook": {
+                "enabled": True,
+                "url": "https://example.com/hook",
+            },
+            "slack": {
+                "enabled": True,
+                "webhook_url": "https://hooks.slack.com/services/test",
+            },
+            "discord": {
+                "enabled": True,
+                "webhook_url": "https://discord.com/api/webhooks/test",
+            },
         }
     }
     channels = get_channels(config_all)
-    assert len(channels) == 2
+    assert len(channels) == 5
     assert any(isinstance(c, ConsoleChannel) for c in channels)
     assert any(isinstance(c, NtfyChannel) for c in channels)
+    assert any(isinstance(c, WebhookChannel) for c in channels)
+    assert any(isinstance(c, SlackWebhookChannel) for c in channels)
+    assert any(isinstance(c, DiscordWebhookChannel) for c in channels)
 
     config_console_only = {
         "alerts": {
             "console": True,
             "ntfy": {"enabled": False},
+            "webhook": {"enabled": False},
+            "slack": {"enabled": False},
+            "discord": {"enabled": False},
         }
     }
     channels_c = get_channels(config_console_only)
