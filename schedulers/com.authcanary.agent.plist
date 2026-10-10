@@ -7,26 +7,33 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/env</string>
-        <string>python3</string>
-        <string>main.py</string>
+        <string>AUTHCANARY_DIR_PLACEHOLDER/.venv/bin/python</string>
+        <string>AUTHCANARY_DIR_PLACEHOLDER/main.py</string>
         <string>--config</string>
-        <string>config.yaml</string>
+        <string>AUTHCANARY_DIR_PLACEHOLDER/config.yaml</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>AUTHCANARY_DIR_PLACEHOLDER</string>
 
+    <!-- Run every 15 minutes -->
     <key>StartInterval</key>
-    <integer>900</integer> <!-- 15 minutes -->
+    <integer>900</integer>
 
     <key>StandardOutPath</key>
-    <string>/tmp/authcanary.stdout.log</string>
+    <string>AUTHCANARY_DIR_PLACEHOLDER/authcanary.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/authcanary.stderr.log</string>
+    <string>AUTHCANARY_DIR_PLACEHOLDER/authcanary.stderr.log</string>
 
     <key>RunAtLoad</key>
     <true/>
+
+    <!-- Restart automatically if it exits with a failure code -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
 </dict>
 </plist>

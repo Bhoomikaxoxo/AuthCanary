@@ -1,0 +1,19 @@
+# Never send these into the Docker build context
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite3
+cursor.json
+.authcanary/
+output/report.html
+output/report.json
+test_data/*.log
+.DS_Store
+.git/

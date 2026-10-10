@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Test suite ────────────────────────────────────────────────────
+  test:
+    name: Tests (Python ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  # ── Import smoke test (no external deps required) ─────────────────
+  import-check:
+    name: Import smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Verify all modules import cleanly
+        run: |
+          python -c "
+          from ingest.adapters import get_adapter
+          from ingest.cursor import CursorManager
+          from ingest.schema import AuthEvent
+          from enrich.providers import get_provider
+          from enrich.cache import EnrichmentCache
+          from engine.baseline import Baseline
+          from engine.invariants import InvariantEngine
+          from engine.novelty import NoveltyTracker
+          from engine.integrity import IntegrityChecker
+          from engine.persistence_monitor import PersistenceMonitor
+          from engine.models import ScoredEvent
+          print('All imports OK')
+          "
+
+  # ── Docker build check ────────────────────────────────────────────
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: authcanary:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

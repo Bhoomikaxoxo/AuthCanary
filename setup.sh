@@ -120,9 +120,11 @@ if [[ "$INSTALL_JOB" =~ ^[Yy]$ ]]; then
         sed "s|AUTHCANARY_DIR_PLACEHOLDER|$SCRIPT_DIR|g" \
             "$SCRIPT_DIR/schedulers/com.authcanary.agent.plist" > "$PLIST_DIR/$PLIST_NAME"
 
+        launchctl unload "$PLIST_DIR/$PLIST_NAME" 2>/dev/null || true
         launchctl load "$PLIST_DIR/$PLIST_NAME" 2>/dev/null || true
         echo "  ✓ launchd agent installed."
-        echo "    Check status: launchctl list | grep authcanary"
+        echo "    Status: launchctl list | grep authcanary"
+        echo "    Logs:   tail -f $SCRIPT_DIR/authcanary.stdout.log"
 
     else
         echo "  ⚠ Automatic installation not supported on this OS."

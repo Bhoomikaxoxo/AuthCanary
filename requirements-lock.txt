@@ -1,0 +1,19 @@
+# Pinned runtime + dev dependencies for AuthCanary
+# Generated from: pip freeze (Python 3.13, macOS)
+#
+# Runtime
+PyYAML==6.0.3
+requests==2.34.2
+Jinja2==3.1.6
+# Indirect runtime
+certifi==2026.7.22
+charset-normalizer==3.5.1
+idna==3.19
+MarkupSafe==3.0.3
+urllib3==2.8.0
+# Dev / test
+pytest==9.1.1
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

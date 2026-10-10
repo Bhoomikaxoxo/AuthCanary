@@ -4,10 +4,14 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/env python3 %h/authcanary/main.py --config %h/authcanary/config.yaml
+# Use the project's venv Python, not the system Python
+ExecStart=%h/authcanary/.venv/bin/python %h/authcanary/main.py --config %h/authcanary/config.yaml
 WorkingDirectory=%h/authcanary
 StandardOutput=journal
 StandardError=journal
+# Restart on non-zero exit (parse/ingestion errors)
+Restart=on-failure
+RestartSec=30s
 
 [Install]
 WantedBy=default.target
